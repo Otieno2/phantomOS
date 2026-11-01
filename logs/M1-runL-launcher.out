@@ -1,0 +1,20 @@
+[2026-10-31 03:43:25] lb config 
+P: Executing auto/config script.
+[2026-10-31 03:43:25] lb config noauto --mode debian --system live --initsystem systemd --ignore-system-defaults --architectures amd64 --distribution trixie --archive-areas main --security true --updates true --backports false --proposed-updates false --keyring-packages debian-archive-keyring --binary-images iso-hybrid --binary-filesystem fat32 --checksums sha256 --zsync false --net-tarball true --memtest none --chroot-filesystem squashfs --chroot-squashfs-compression-type xz --initramfs live-boot --initramfs-compression gzip --apt apt --apt-secure true --apt-recommends false --apt-indices true --apt-source-archives true --debconf-frontend noninteractive --debconf-priority critical --debian-installer none --bootappend-live boot=live components quiet splash --linux-flavours amd64 --linux-packages linux-image --firmware-chroot false --uefi-secure-boot auto --source false
+P: Updating config tree for a debian/trixie/amd64 system
+P: Symlinking hooks...
+  2 entries -> phantomos.list.chroot
+  4 entries -> live.list.chroot
+dpkg-deb: building package 'phantomos-release' in '/opt/phantomos-build/pool/phantomos-release_0.1.0-1_all.deb'.
+built phantomos-release_0.1.0-1_all.deb (2824 bytes)
+dpkg-deb: building package 'phantomos-config' in '/opt/phantomos-build/pool/phantomos-config_0.1.0-1_all.deb'.
+built phantomos-config_0.1.0-1_all.deb (1564 bytes)
+dpkg-deb: building package 'phantomos-base' in '/opt/phantomos-build/pool/phantomos-base_0.1.0-1_all.deb'.
+built phantomos-base_0.1.0-1_all.deb (1032 bytes)
+dpkg-deb: building package 'phantomos-desktop' in '/opt/phantomos-build/pool/phantomos-desktop_0.1.0-1_all.deb'.
+built phantomos-desktop_0.1.0-1_all.deb (1032 bytes)
+pool signed: InRelease Packages Packages.gz phantomos-base_0.1.0-1_all.deb phantomos-config_0.1.0-1_all.deb phantomos-desktop_0.1.0-1_all.deb phantomos-release_0.1.0-1_all.deb Release Release.gpg 
+=== effective config of the tree about to be built ===
+  98 assignments -> /root/phantomos-m1/logs/config-dump-2026-10-31T004330Z.txt
+/mnt/c/Users/INFINITY/OneDrive/Desktop/phantomOS/scripts/build-iso.sh: line 85: syntax error near unexpected token `('
+/mnt/c/Users/INFINITY/OneDrive/Desktop/phantomOS/scripts/build-iso.sh: line 85: ` are optional (M1 ships none — see the header of scripts/build-packages.sh for why'

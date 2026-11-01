@@ -1,0 +1,59 @@
+Firmware area check for the §5 selection, run 2026-10-30.
+
+Why this file exists: live/auto/config sets --archive-areas main. That is a
+deviation from Debian's own live images, which ship non-free-firmware, and
+M0's build log shows the consequence. §11 wants the numbers, not the reasoning.
+
+Method: the trixie main index already on the host (/var/lib/apt/lists, from
+the main-only 0000debian.sources) plus the non-free-firmware index fetched
+read-only over HTTPS from the archive. Nothing on the host was reconfigured.
+
+=== host sources, as they stand ===
+  /etc/apt/sources.list.d/0000debian.sources:URIs: https://deb.debian.org/debian
+  /etc/apt/sources.list.d/0000debian.sources:Suites: trixie trixie-updates trixie-backports
+  /etc/apt/sources.list.d/0000debian.sources:Components: main
+  /etc/apt/sources.list.d/0000debian.sources:URIs: https://security.debian.org/debian-security
+  /etc/apt/sources.list.d/0000debian.sources:Suites: trixie-security
+  /etc/apt/sources.list.d/0000debian.sources:Components: main
+
+=== Wi-Fi + CPU hardware of the build host (the machine M1 was built on) ===
+  Hyper-V Virtual Ethernet Adapter #2
+  Hyper-V Virtual Ethernet Adapter
+  Intel(R) Ethernet Connection I219-V
+  Intel(R) Dual Band Wireless-AC 8260
+  model name	: Intel(R) Core(TM) i5-6200U CPU @ 2.30GHz
+
+=== firmware packages M0 actually shipped (logs/M0-lb-build.log) ===
+  firmware-ath9k-htc
+  firmware-carl9170
+  firmware-linux-free
+
+=== firmware-iwlwifi present in trixie main? ===
+  no — main-only --archive-areas cannot install it
+
+=== trixie non-free-firmware, amd64 ===
+  package count: 44
+  the entries a laptop actually needs, with Installed-Size in KiB:
+    amd64-microcode                   698 KiB  Platform firmware and microcode for AMD CPUs and SoCs
+    firmware-intel-graphics         28978 KiB  Binary firmware for Intel iGPUs and IPUs
+    firmware-iwlwifi               114123 KiB  Binary firmware for Intel Wireless cards
+    firmware-misc-nonfree           13232 KiB  Binary firmware for various drivers in the Linux kernel
+    firmware-sof-signed             35000 KiB  Intel SOF firmware - signed
+    intel-microcode                 20908 KiB  Processor microcode firmware for Intel CPUs
+    live-task-non-free-firmware-pc        9 KiB  selection of oft-used non-free-firmware shipped on live systems
+    live-task-non-free-firmware-server        9 KiB  provides firmware for server network and storage devices
+
+=== live-build's own answer, for the record ===
+  Package: live-task-non-free-firmware-pc
+  Suggests: vrms
+  Description: selection of oft-used non-free-firmware shipped on live systems
+  (no Depends: Debian's live images pull the blobs through this task's
+   postinst, not through a dependency the metapackage could inherit.)
+
+=== mitigations as this WSL kernel reports them (host microcode is current) ===
+  old_microcode      Not affected
+  mds                Mitigation: Clear CPU buffers; SMT Host state unknown
+  mmio_stale_data    Mitigation: Clear CPU buffers; SMT Host state unknown
+  spectre_v2         Mitigation: IBRS; IBPB: conditional; STIBP: conditional; RSB filling; PBRSB-eIBRS: Not affected; BHI: SW loop, KVM: SW loop
+  caveat: /proc and /sys here are the Windows host's, surfaced through WSL.
+  They say nothing about whatever machine a friend boots PhantomOS on.

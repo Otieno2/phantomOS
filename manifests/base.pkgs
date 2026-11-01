@@ -1,0 +1,64 @@
+# phantomos-base — the explicit, no-GUI selection.
+#
+# Derived from docs/SPEC.md §5 on 2026-10-30. On any conflict, §5 wins and this
+# file is corrected; nothing here is a choice made at this level.
+# Format: one package name per line; '#' starts a comment; blank lines ignored.
+# Versions are never pinned here — §5 pins none, and the archive is the authority
+# (§3.1's fact table records what the archive actually holds, with a date).
+
+# PhantomOS's own. Both are built by scripts/build-packages.sh from this repo;
+# phantomos-config ships empty until M2 fills it (§10), and it is listed here because
+# §5 names it in the base inventory — the M1 diff measures the inventory as written.
+phantomos-release
+phantomos-config
+
+# §6 controls, in the order §6 lists them
+sudo                      # §6.7 no root password, sudo with tty
+unattended-upgrades       # §6.6
+apparmor                  # §6.3
+nftables                  # §6.5
+lvm2                      # §6.1 ext4 on LVM
+cryptsetup                # §6.1 LUKS2
+ca-certificates           # §8 trust anchor for the signed channel
+apt-listchanges           # §6.6 "no install path may silently never update"
+openssh-client            # §5: client only — openssh-server is a drop, §6.5
+
+# §5.1 sandboxed apps, with no remote preconfigured (§5.1, §6.8)
+flatpak
+
+# Hardware enablement, named because nothing else names them any more (§9.1).
+#
+# live-build's chroot_firmware stage builds its package list by reading the archive's Contents
+# file and taking every package that ships a path under lib/firmware, then hands those names to
+# apt as explicit installs. It reads Contents-all and Contents-<arch>, so against trixie main the
+# rule yields six names — five from Contents-all (32 paths: alsa-topology-conf,
+# firmware-ath9k-htc, firmware-carl9170, firmware-linux-free, wireless-regdb) plus indi-dsi from
+# Contents-amd64 (1 path). logs/M1-firmware-contents-repro.txt has the reproduction and
+# logs/M1-firmware-contents-lines.txt the Contents line for each. Five of the six are worth
+# having; indi-dsi is a Meade DSLR camera driver that ships
+# usr/lib/firmware/meade-deepskyimager.hex and is in the image only because of that path.
+# Against trixie's non-free-firmware the same rule yields 34 packages over 4792 paths, and
+# contrib 2 more (logs/M1-firmware-nonfree-scale.txt), so the rule is what has to go, not the
+# list. The block below is the version of it that somebody read.
+
+#
+# So live/auto/config sets --firmware-chroot false and the wanted names are written here, each
+# with the reason it is in the image. Nothing is added that the enumeration gave us for free and
+# nobody checked. The sizes below are the .deb bytes apt fetched (logs/M1-firmware-contents-lines.txt §4).
+linux-image-amd64           # §6.4: Debian's kernel as shipped, no rebuild. live-build's own
+                            # chroot_linux-image stage names it too; naming it here is what puts
+                            # it in the inventory instead of in the drift column
+firmware-linux-free         # 17832 B, 24 lib/firmware paths — the blobs in-kernel drivers request
+firmware-ath9k-htc          # 45040 B — AR7010/AR9271 USB Wi-Fi, i.e. the adapter a friend brings
+firmware-carl9170           # 15336 B — AR9170 USB Wi-Fi, same reason
+wireless-regdb              # 12400 B — regulatory.db, without which the kernel cannot set
+                            # country-correct transmit power on Wi-Fi. §12 item 12 lists it as a
+                            # Recommends of network-manager, and --apt-recommends false turns that
+                            # route off, so naming it here is what keeps it. It is also the only
+                            # one of the five with a third-party edge in the archive: nothing
+                            # Depends or Pre-Depends on it but reform-desktop-minimal, which this
+                            # selection does not pull (logs/M1-firmware-ownership.txt)
+alsa-topology-conf          # 15276 B — ships usr/lib/firmware/skl_hda_dsp_generic-tplg.bin, the
+                            # Intel Skylake+ HDA/DSP topology file. The only machine this repo
+                            # knows about is §9's build host, an HP EliteBook 840 G3 (i5-6200U,
+                            # Skylake); no friend's hardware has been recorded anywhere

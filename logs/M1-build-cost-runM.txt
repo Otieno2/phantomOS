@@ -1,0 +1,164 @@
+# Where run M's 104 minutes actually went, and the answer to "can we cache the repositories?"
+
+Run M: `2026-11-01T14:07:27Z .. 2026-11-01T15:52:06Z`, `lb build exit 0`, ISO
+`908066816` B sha256 `f256cefc66d9ab31031501469080bbe154b16e7844453ac6e108221a4d69a2a5`
+(logs/M1-artifact-2026-11-01T140727Z.txt). Source for every number below is
+`logs/M1-lb-build-runM.log` (288566 B, 4971 lines, zero `E:` lines), copied out of the build host.
+
+Clocks, because §9.1 requires every run row to say which one it quotes: the stage stamps below are
+the **host-local EAT** clock live-build writes (`[2026-11-01 17:07:28]` = `14:07:28Z`). The run
+name and the artifact record are **UTC**, which is what `scripts/build-iso.sh` stamps with. The
+build's own first and last stage markers span 17:07:28 → 18:52:04 local = 6276 s = 1 h 44 m 36 s.
+
+## 1. Stage durations, measured
+
+Each figure is the interval from a stage's marker to the next stage's marker, so a stage's number
+includes everything it did. Extracted from every `[YYYY-MM-DD HH:MM:SS] lb <stage>` line in the
+log, longest first:
+
+    1031 s  bootstrap_debootstrap            17:07:38
+     925 s  chroot_install-packages install  17:30:04
+     887 s  chroot_archives chroot install   18:10:12
+     669 s  binary_rootfs                    18:24:59
+     544 s  chroot_archives chroot install   17:55:43
+     477 s  chroot_archives chroot remove    17:46:35
+     475 s  chroot_archives binary remove    18:36:08
+     287 s  chroot_archives chroot remove    18:04:49
+     248 s  chroot_archives chroot install   17:25:35
+     177 s  binary_grub-efi                  18:45:38
+     104 s  binary_iso                       18:50:08
+      60 s  binary_bootloader_splash         18:48:35
+      41 s  bootstrap_cache save             17:24:49
+      38 s  binary_syslinux                  18:44:57
+      33 s  installer_chroot                 17:55:05
+      31 s  chroot_hacks                     17:46:04
+
+**`chroot_archives` runs six times and totals 2918 s = 48 m 38 s, which is 46 % of the whole
+build.** 887 + 544 + 477 + 475 + 287 + 248. It is the single largest cost in the build by a wide
+margin — larger than debootstrap (1031 s), larger than installing the entire desktop set (925 s),
+larger than `binary_rootfs` including the xz squashfs of an 837 MB image (669 s). And it fetches no
+packages: it manages `/etc/apt/sources.list` and runs `apt-get update`.
+
+This corrects an earlier figure. §9.1 and the acng log both quote "25 m 46 s of apt index parsing
+across five `chroot_archives` invocations" from an earlier build. Run M shows **six** invocations
+and 48 m 38 s. The earlier number was not wrong for its run; it is not this run's, and the
+difference matters because it is the size of the prize.
+
+## 2. What those six passes download
+
+apt's own completion lines, in log order:
+
+    line  726  Fetched 17.8 MB in  2min 39s  (112 kB/s)
+    line 1175  Fetched 1393 kB in       3s   (521 kB/s)
+    line 4146  Fetched 27.7 MB in  7min 49s  ( 59 kB/s)
+    line 4225  Fetched 17.8 MB in  8min 16s  ( 36 kB/s)
+    line 4301  Fetched 27.7 MB in  4min 39s  ( 99 kB/s)
+    line 4381  Fetched 15.2 MB in 14min 0s   ( 18 kB/s)
+    line 4534  Fetched 27.7 MB in  7min 40s  ( 60 kB/s)
+
+2706 s = 45 m 6 s of download inside the 2918 s of stage time; the remaining ~3.5 minutes is apt
+decompressing and parsing what it fetched. 135 MB total, and **not one byte of it is a `.deb`.**
+
+Three passes cost 27.7 MB and two cost 17.8 MB. The 9.9 MB delta is one file:
+
+    Get:7 http://deb.debian.org/debian trixie/main Sources [10.5 MB]
+
+the single largest object in every pass that has it, plus
+`security.debian.org trixie-security/main Sources [247 kB]`. Neither is needed to install anything.
+They are there because of a `deb-src` line.
+
+The parse side was measured during the build, from apt's own partial directory:
+
+    10 540 436 B  ..._trixie_main_source_Sources.xz
+    57 389 817 B  ..._trixie_main_source_Sources        (the same file decompressed)
+
+So each of those passes expands a 10.5 MB download into 57 MB of index that apt then reads. On a
+build host whose mirror throughput measured 18-112 kB/s (logs/M1-build-throughput.txt: the uplink,
+not WSL — the same file from Windows PowerShell got the same 58 KiB/s), that is where the minutes go.
+
+## 3. Where the `deb-src` lines come from — ours, via a live-build default
+
+The chroot's `/etc/apt/sources.list`, read during the build:
+
+    deb     http://deb.debian.org/debian/ trixie main
+    deb-src http://deb.debian.org/debian/ trixie main
+    deb     http://security.debian.org/ trixie-security main
+    deb-src http://security.debian.org/ trixie-security main
+    deb     http://deb.debian.org/debian/ trixie-updates main
+    deb-src http://deb.debian.org/debian/ trixie-updates main
+
+and those six lines are shipped: `scripts/m1-diff.sh` prints exactly this list as the channels the
+image carries (logs/M1-diff-runM.txt).
+
+Nothing in this repository writes a `deb-src` line — `grep -rn 'deb-src'` over the tree matches one
+line, in `scripts/m1-diff.sh`, and that line *reads* them. They come from
+`/usr/share/live/build/functions/sourcelist.sh`, which emits `deb-src` for every suite it writes
+(lines 70, 74, 88, 92, 98, 107, 111, 118, 122, 132, 139) and then, at lines 143-149, comments them
+back out — conditionally:
+
+    # Disable deb-src entries?
+    if [ "${_PASS}" != "source" ] && [ "${LB_APT_SOURCE_ARCHIVES}" != "true" ]; then
+            sed -i "s/^deb-src/#deb-src/g" "${PARENT_LIST_FILE}"
+            if [ "${LB_DERIVATIVE}" = "true" ]; then
+                    sed -i "s/^deb-src/#deb-src/g" "${LIST_FILE}"
+            fi
+    fi
+
+`LB_APT_SOURCE_ARCHIVES` is `"true"` in run M's config dump
+(logs/M1-config-dump-2026-11-01T140727Z.txt line 7), so the condition is false and the `sed` never
+runs. That value is set by `live/auto/config`'s `--apt-source-archives true`.
+
+**It is not a deviation we chose.** `logs/M0-effective-config.txt` line 24 records
+`LB_APT_SOURCE_ARCHIVES="true"` as live-build's own default on a stock `lb config`, and
+`logs/M1-config-verify-2026-10-31.txt` still reports exactly three deviations
+(`LB_APT_RECOMMENDS`, `LB_CHROOT_SQUASHFS_COMPRESSION_TYPE`, `LB_FIRMWARE_CHROOT`). So
+`auto/config`'s header claim of "three, and scripts/config-audit.sh is what proves there are no
+others" is accurate; the line is there to restate a default, as that header says the rest of the
+file does. The consequence is nonetheless that **live-build's default makes every one of six passes
+fetch a source index a live image cannot use.**
+
+One thing not established, and it would have to be run rather than read: even with
+`--apt-source-archives false`, the second `sed` is gated on `LB_DERIVATIVE = "true"`, and
+`LB_DERIVATIVE` does not appear in either config dump. With `--mode debian` and no derivative
+configured it is unclear whether `LIST_FILE` and `PARENT_LIST_FILE` are the same file here. The
+six lines above all name Debian, so they look like the parent list, which the ungated first `sed`
+would handle — but "look like" is not a measurement.
+
+## 4. The two levers, and why neither was pulled
+
+Both are real `lb config` options, confirmed against the installed binary rather than a captured
+help text (`live-build 1:20250505+deb13u1`):
+
+    --cache-indices true|false        (LB_CACHE_INDICES, currently "false", dump line 22)
+    --apt-source-archives true|false  (LB_APT_SOURCE_ARCHIVES, currently "true", dump line 7)
+
+- `--cache-indices true` is the direct answer to the question that started this: *store the
+  repositories so a build does not re-download them.* It keeps `lists/` between runs instead of
+  discarding it, so a second build revalidates rather than re-fetches. It does not change the
+  artifact — no shipped file depends on whether the indices were cached — so in principle it is
+  free. Not pulled: it is a build-input change, §11 requires the gate re-run after any such change,
+  and the gate had just been satisfied by a 104-minute build. Changing an input to make the *next*
+  build faster, in the same session that the current one finally passed, trades a measured result
+  for an unmeasured one.
+- `--apt-source-archives false` is bigger — it removes ~10.7 MB and 57 MB of parse per pass — but
+  it **does** change the artifact: the shipped `sources.list` loses its three `deb-src` lines. That
+  is an image-visible difference with an argument on both sides (a friend who wants to
+  `apt-get source` a package loses it; a live image whose own §5 inventory says nothing about
+  source archives never needed it). It would also become `auto/config`'s fourth deviation and need
+  its header and `config-audit.sh`'s baseline expectation updated. Not a call to make silently.
+
+What is **not** a lever, and was measured rather than assumed: a local caching proxy. See
+logs/M1-acng-offline-serving.txt §2 — apt-cacher-ng classifies `dists/*` as volatile
+(`VFilePattern`, /etc/apt-cacher-ng/acng.conf:230-232) and revalidates it against upstream on every
+request, returning 503 when upstream is unreachable even with a fresh copy in its cache. The 48 m 38 s
+in §1 is `dists/*` traffic. The proxy serves the object class that is 0 % of this build's cost and
+revalidates the object class that is 46 % of it.
+
+## 5. What this log does not claim
+
+It does not claim a speedup. Neither lever was run, so the saving is a subtraction of measured
+bytes from a measured timeline, not an observed shorter build. The prediction is falsifiable and
+specific: with `--apt-source-archives false`, the three 27.7 MB passes become ~17 MB passes and no
+`Sources [10.5 MB]` line appears; with `--cache-indices true` on a warm tree, the first
+`chroot_archives` pass after a rebuild stops printing `Fetched` for the files already in `lists/`.
+If a future run does not show that, this section is wrong.

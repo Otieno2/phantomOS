@@ -1,0 +1,54 @@
+# Explicitly NOT in the image — §5's drop list, plus the packages §5 or §6 exclude.
+#
+# This file is not an input to the build. It is a guard: scripts/m1-diff.sh fails if any name
+# here appears in the built image's installed set at all — not merely as a manual selection,
+# since arriving as somebody else's dependency is the way a drop comes back. A drop that is
+# only written in prose is a drop that returns through a Recommends nobody read, which is the
+# exact failure mode --apt-recommends false was set to avoid (live/auto/config).
+#
+# The 19 from §5's inventory tail (xfce4-goodies' Depends list is the menu; these are
+# the ones with a written reason for staying out).
+
+# no optical media in scope
+xfburn
+
+# no media library
+thunar-media-tags-plugin
+
+# applets the three-capsule mock has no slot for
+xfce4-dict
+xfce4-verve-plugin
+xfce4-places-plugin
+xfce4-timer-plugin
+xfce4-xkb-plugin
+xfce4-wavelan-plugin
+xfce4-cpugraph-plugin
+xfce4-cpufreq-plugin
+xfce4-systemload-plugin
+xfce4-netload-plugin
+xfce4-diskperf-plugin
+xfce4-fsguard-plugin
+xfce4-sensors-plugin
+xfce4-notes-plugin
+
+# rule conflicts, not taste (§5)
+xfce4-mailwatch-plugin
+xfce4-weather-plugin
+xfce4-clipman-plugin
+
+# the metapackage those 19 were picked out of — §5 forbids installing it as a suite
+xfce4-goodies
+
+# excluded by §5/§6 rather than by the goodies list
+openssh-server
+cups-browsed
+avahi-daemon
+snapd
+
+# hardware enablement that is not the hardware this project knows about (§9's build host is the
+# only machine ever recorded here). It reached M0 and the first M1 build
+# because live-build's Contents rule installs anything shipping a lib/firmware path, and its one
+# such path is usr/lib/firmware/meade-deepskyimager.hex — a Meade Deep Sky Imager camera's
+# firmware (logs/M1-firmware-contents-lines.txt). --firmware-chroot false is what keeps it out
+# now (live/auto/config); this line is the claim that it stays out.
+indi-dsi

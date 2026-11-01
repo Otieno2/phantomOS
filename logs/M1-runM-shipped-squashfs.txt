@@ -1,0 +1,86 @@
+Run M's shipped squashfs, measured out of the archived ISO.
+
+Why this file exists: SPEC §9.1's run M row and §10's M1 row both rest on
+`scripts/m1-diff.sh` having been pointed at the artifact rather than at a build tree, and the
+sentence that carries that is "the squashfs inside the ISO is byte-identical to the build tree's
+(both 837 292 032 B, sha256 5c285984…)". That sha256 was measured during the session and printed to
+a terminal. It was never captured into `logs/` — not on the Windows side, not on the build host
+(`grep -rn 5c285984 /root/phantomos-m1/logs/ /root/phantomos-tests/` returns nothing, run
+2026-11-01T17:24Z). §11 does not accept a number that only ever existed in scrollback, so this is
+the re-measurement.
+
+=== clock ===
+2026-11-01T20:24:05+03:00  (host-local EAT, what live-build's stage stamps use)
+2026-11-01T17:24:05+00:00  (UTC, what scripts/build-iso.sh stamps artifact records with)
+
+=== the artifact, unchanged since the build ===
+908066816 2026-11-01 17:07:28.000000000 +0300
+  /root/phantomos-m1/artifacts/2026-11-01T140727Z/live-image-amd64.hybrid.iso
+sha256 f256cefc66d9ab31031501469080bbe154b16e7844453ac6e108221a4d69a2a5
+  — matches logs/M1-artifact-2026-11-01T140727Z.txt line for line.
+
+A correction to how the timestamp above reads, added 2026-11-01T18:25Z after the measurement in
+logs/M1-buildid-per-run.txt: that mtime is **not** when the build wrote the ISO. live-build's
+binary_iso:230 does `touch -d@${SOURCE_DATE_EPOCH} ${IMAGE}`, so the artifact's mtime is the
+epoch, which is the wall-clock second live-build read its configuration — one second after
+build-iso.sh stamped the run. Run M's record says `run: 2026-11-01T140727Z ..
+2026-11-01T155206Z` and its log ends `[2026-11-01 18:52:04] lb source` / `P: Build completed
+successfully`, so the run took 1 h 44 m 39 s while this file's mtime says 17:07:28 +0300 =
+14:07:28Z. Same for the squashfs "Creation or last append time" below, which binary:74's
+unconditional `find … -exec touch -d@${SOURCE_DATE_EPOCH}` rewinds the same way. Nothing quoted
+from an mtime in this file is a finish time; the finish time is in
+logs/M1-artifact-2026-11-01T140727Z.txt's `run: … .. …` line.
+
+=== the squashfs inside it (mount -o ro,loop, then sha256sum, then umount) ===
+837292032 2026-11-01 17:07:28.000000000 +0300  /mnt/m1iso-runM-sha/live/filesystem.squashfs
+sha256 5c28598459d38f95a6ae89380100749a81926c9f360b47739292d7f20ed2688e
+
+unsquashfs -s:
+  Found a valid SQUASHFS 4:0 superblock
+  Creation or last append time Sun Nov  1 17:07:28 2026
+  Filesystem size 837291893 bytes (817667.86 Kbytes / 798.50 Mbytes)
+  Compression xz
+  Block size 131072
+  Number of fragments 3400
+
+unsquashfs -l | wc -l:  47705
+  — the same path count as run K's rootfs squashfs (logs/M1-squashfs-entries.txt:1 and
+    logs/runK/M1-squashfs-entries.txt:1), and the count §9.1's run M row quotes.
+
+Both halves of the SPEC sentence are therefore confirmed on the ISO side: the size 837 292 032 and
+the sha256 5c285984… are what the shipped artifact actually contains.
+
+=== what this file cannot show, and why ===
+The comparison's other half is gone. `m1-diff.sh` reads
+`$WORK/live/binary/live/filesystem.squashfs`, and the cold-clean that run N started from (SPEC
+§9.1's procedure: delete `live/.build`, `live/chroot*`, `live/binary`, `live/tmp`, `live/.lock`,
+`live/cache/bootstrap`) removed `live/binary` wholesale. Verified absent at 17:24Z:
+
+  ls: cannot access '/root/phantomos-m1/live/binary/live/filesystem.squashfs': No such file or directory
+
+So "the build tree's copy had the same sha256" is a claim about a file that no longer exists and
+cannot be re-measured for run M. Two things keep it from being load-bearing on its own:
+
+  1. live-build does not rewrite the squashfs between `binary_rootfs` and `binary_iso` — it copies
+     it into the ISO image tree (`binary_chroot`/`binary_rootfs` write `binary/live/`, `binary_iso`
+     wraps it). The earlier build whose evidence *was* archived shows the identity directly:
+     logs/M1-shipped-squashfs.txt:107-109 has the same sha256 for `/mnt/m1iso/live/filesystem.squashfs`
+     and `/root/phantomos-m1/live/binary/live/filesystem.squashfs` (f2f7d1ee…, that build's value).
+     That is a different build, so it is evidence about the mechanism, not about run M's bytes.
+  2. `m1-diff.sh`'s own output for run M agrees with what the ISO contains on every number that can
+     be checked from outside: 834 installed packages, 47 705 paths, and the six shipped channels
+     (logs/M1-diff-runM.txt:2, :74-80).
+
+=== what happens next ===
+Run N is building from a cold tree with `user-setup`, `locales` and `live-tools` named in
+manifests/live.pkgs. When it lands, the ISO-versus-tree sha256 comparison gets made again with both
+copies present and its output archived in the same breath — that is the only way the sentence in
+§9.1 becomes a logged measurement rather than a mechanism argument plus a matching set of numbers.
+Until then SPEC §9.1's run M row cites this file for the ISO side and says plainly that the tree
+side was not archived.
+
+=== hygiene ===
+The mount was read-only, outside `$WORK`, and removed: `umount` reported clean, `grep -c phantomos
+/proc/mounts` returned 0 afterwards, and the empty mountpoint directory was deleted. Run N's own
+cold-clean precondition (`grep phantomos-m1 /proc/mounts` empty) is unaffected by anything here, and
+was 0 both before and after.

@@ -1,0 +1,187 @@
+=== 0. the log files inside the shipped squashfs, in bytes ===
+[===================================================================|] 3/3 100%
+/tmp/tmp.2blzh3wXN6/root/var/log/apt/eipp.log.xz  0 bytes  0 lines
+/tmp/tmp.2blzh3wXN6/root/var/log/apt/history.log  0 bytes  0 lines
+/tmp/tmp.2blzh3wXN6/root/var/log/apt/term.log  0 bytes  0 lines
+--- same files in the host tree's finished chroot (chroot/chroot)
+  (chroot/chroot is the bootstrap copy now; see 0 above)
+
+=== 1. eipp solver log: does it carry command lines? ===
+  (xz -dc failed)
+  eipp.log decompressed: 0 lines
+  first 20 lines:
+  lines mentioning Commandline/Start-Date: 0
+  number of '-----' run separators: 0
+
+=== 2. eipp: every run that installs one of the seven, with its Inst lines ===
+awk: line 7: illegal reference to variable hit
+
+=== 3. how live-build builds its firmware list ===
+# Checking depends
+Check_package host /usr/bin/wget wget
+
+# Diverting update-initramfs
+#case "${LB_INITRAMFS}" in
+#	live-boot)
+#		mv chroot/usr/sbin/update-initramfs chroot/usr/sbin/update-initramfs.live-build
+#		;;
+#esac
+
+# Include firmware packages
+
+# Get all firmware packages names
+
+FIRMWARE_PACKAGES=""
+
+# Manually add firmware-linux meta package if available
+if [ $(Check_package_available "firmware-linux") -eq 1 ]
+then
+	FIRMWARE_PACKAGES="${FIRMWARE_PACKAGES} firmware-linux"
+fi
+
+Firmware_List_From_Contents "${LB_PARENT_MIRROR_CHROOT}" "${LB_PARENT_DISTRIBUTION_CHROOT}" "${LB_PARENT_ARCHIVE_AREAS}"
+
+if [ "${LB_DERIVATIVE}" = "true" ]
+then
+	# Avoid downloading things twice if distributions are identical
+	DERIVATIVE_ARCHIVE_AREAS=""
+	if [ "${LB_DISTRIBUTION_CHROOT}" != "${LB_PARENT_DISTRIBUTION_CHROOT}" ]
+	then
+		DERIVATIVE_ARCHIVE_AREAS="${LB_ARCHIVE_AREAS}"
+	else
+		for _ARCHIVE_AREA in ${LB_ARCHIVE_AREAS}
+		do
+			if ! In_list ${_ARCHIVE_AREA} ${LB_PARENT_ARCHIVE_AREAS}
+			then
+				DERIVATIVE_ARCHIVE_AREAS="${DERIVATIVE_ARCHIVE_AREAS} ${_ARCHIVE_AREA}"
+			fi
+		done
+	fi
+
+	if [ ! -z "${DERIVATIVE_ARCHIVE_AREAS}" ]
+	then
+		Firmware_List_From_Contents "${LB_MIRROR_CHROOT}" "${LB_DISTRIBUTION_CHROOT}" "${DERIVATIVE_ARCHIVE_AREAS}"
+	fi
+fi
+
+# Ensure that the package file exists before it is manipulated
+touch chroot/root/packages.chroot
+
+# Drop section and keep package names only
+for _PACKAGE in ${FIRMWARE_PACKAGES}
+do
+	echo $(echo ${_PACKAGE} | awk -F/ '{ print $NF }') >> chroot/root/packages.chroot
+done
+
+# Some known licenses required to be accepted
+if grep --silent "^firmware-ivtv$" chroot/root/packages.chroot
+then
+cat >> chroot/root/packages.chroot.cfg << EOF
+firmware-ivtv firmware-ivtv/license/accepted boolean true
+
+=== 4. which apt index FIELD mentions each name (main + our pool) ===
+--- deb.debian.org_debian_dists_trixie_main_binary-amd64_Packages
+      1       wireless-regdb  <- Recommends of network-manager
+      1       wireless-regdb  <- Recommends of iwd
+      1       wireless-regdb  <- Recommends of iw
+      1       wireless-regdb  <- Depends of reform-desktop-minimal
+      1       linux-image-amd64  <- Recommends of supermin
+      1       linux-image-amd64  <- Recommends of fakemachine
+      1       linux-image-amd64  <- Recommends of debos
+      1       linux-image-amd64  <- Depends of debian-cloud-images-packages
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.94+deb13-rt-amd64-unsigned
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.94+deb13-rt-amd64
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.94+deb13-cloud-amd64-unsigned
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.94+deb13-cloud-amd64
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.94+deb13-amd64-unsigned
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.94+deb13-amd64
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.107+deb13-rt-amd64-unsigned
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.107+deb13-rt-amd64
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.107+deb13-cloud-amd64-unsigned
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.107+deb13-cloud-amd64
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.107+deb13-amd64-unsigned
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.107+deb13-amd64
+--- deb.debian.org_debian_dists_trixie-updates_main_binary-amd64_Packages
+--- _opt_phantomos-build_pool_._Packages
+--- security.debian.org_dists_trixie-security_main_binary-amd64_Packages
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.96+deb13-rt-amd64
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.96+deb13-cloud-amd64
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.96+deb13-amd64
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.95+deb13-rt-amd64
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.95+deb13-cloud-amd64
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.95+deb13-amd64
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.94+deb13-rt-amd64
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.94+deb13-cloud-amd64
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.94+deb13-amd64
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.90+deb13-rt-amd64
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.90+deb13-cloud-amd64
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.90+deb13-amd64
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.90+deb13.1-rt-amd64
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.90+deb13.1-cloud-amd64
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.90+deb13.1-amd64
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.113+deb13-rt-amd64-unsigned
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.113+deb13-rt-amd64
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.113+deb13-cloud-amd64-unsigned
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.113+deb13-cloud-amd64
+      1       firmware-linux-free  <- Suggests of linux-image-6.12.113+deb13-amd64-unsigned
+
+=== 5. the build log: what each stage says around these names ===
+--- alsa-topology-conf: first 12 log lines
+    1028:  adwaita-icon-theme alsa-topology-conf apparmor apt-listchanges
+    1393:Selecting previously unselected package alsa-topology-conf.
+    1394:Preparing to unpack .../043-alsa-topology-conf_1.2.5.1-3_all.deb ...
+    1395:Unpacking alsa-topology-conf (1.2.5.1-3) ...
+    3492:Setting up alsa-topology-conf (1.2.5.1-3) ...
+--- indi-dsi: first 12 log lines
+    1042:  gtk-update-icon-cache hicolor-icon-theme hunspell-en-us indi-dsi
+    2030:Selecting previously unselected package indi-dsi.
+    2031:Preparing to unpack .../254-indi-dsi_0.4+20221223123028-2_amd64.deb ...
+    2032:Unpacking indi-dsi (0.4+20221223123028-2) ...
+    3930:Setting up indi-dsi (0.4+20221223123028-2) ...
+--- wireless-regdb: first 12 log lines
+    1153:  unixodbc-common upower wireless-regdb wireplumber x11-apps x11-common
+    3272:Selecting previously unselected package wireless-regdb.
+    3273:Preparing to unpack .../668-wireless-regdb_2026.05.30-1~deb13u1_all.deb ...
+    3274:Unpacking wireless-regdb (2026.05.30-1~deb13u1) ...
+    3346:Setting up wireless-regdb (2026.05.30-1~deb13u1) ...
+--- stage markers between chroot_prep and chroot_install-packages
+  682:[2026-10-31 00:00:34] lb chroot_cache restore
+  683:[2026-10-31 00:00:35] lb chroot_prep install all mode-archives-chroot
+  684:[2026-10-31 00:00:35] lb chroot_devpts install
+  686:[2026-10-31 00:00:35] lb chroot_proc install
+  688:[2026-10-31 00:00:36] lb chroot_selinuxfs install
+  689:[2026-10-31 00:00:39] lb chroot_sysfs install
+  691:[2026-10-31 00:00:39] lb chroot_debianchroot install
+  693:[2026-10-31 00:00:40] lb chroot_dpkg install
+  696:[2026-10-31 00:00:41] lb chroot_tmpfs install
+  697:[2026-10-31 00:00:41] lb chroot_sysv-rc install
+  699:[2026-10-31 00:00:42] lb chroot_hosts install
+  701:[2026-10-31 00:00:42] lb chroot_resolv install
+  703:[2026-10-31 00:00:42] lb chroot_hostname install
+  707:[2026-10-31 00:00:45] lb chroot_apt install
+  709:[2026-10-31 00:00:46] lb chroot_archives chroot install
+  782:[2026-10-31 00:04:59] lb chroot_linux-image 
+  784:[2026-10-31 00:05:01] lb chroot_firmware 
+  786:[2026-10-31 00:05:45] lb chroot_preseed 
+  788:[2026-10-31 00:05:51] lb chroot_includes_before_packages 
+  790:[2026-10-31 00:05:51] lb chroot_package-lists install
+  821:[2026-10-31 00:07:16] lb chroot_install-packages install
+  4059:[2026-10-31 00:29:02] lb chroot_package-lists live
+  4092:[2026-10-31 00:29:27] lb chroot_install-packages live
+  4107:[2026-10-31 00:29:33] lb chroot_includes_after_packages 
+  4109:[2026-10-31 00:29:34] lb chroot_hooks 
+  4140:[2026-10-31 00:29:43] lb chroot_hacks 
+  4145:[2026-10-31 00:30:17] lb chroot_interactive 
+  4146:[2026-10-31 00:30:17] lb chroot_prep remove all mode-archives-chroot
+  4147:[2026-10-31 00:30:17] lb chroot_archives chroot remove
+  4165:[2026-10-31 00:37:01] lb chroot_apt remove
+  4167:[2026-10-31 00:37:01] lb chroot_hostname remove
+  4170:[2026-10-31 00:37:04] lb chroot_resolv remove
+  4172:[2026-10-31 00:37:05] lb chroot_hosts remove
+  4174:[2026-10-31 00:37:05] lb chroot_sysv-rc remove
+  4176:[2026-10-31 00:37:06] lb chroot_tmpfs remove
+  4177:[2026-10-31 00:37:06] lb chroot_dpkg remove
+  4179:[2026-10-31 00:37:09] lb chroot_debianchroot remove
+  4181:[2026-10-31 00:37:09] lb chroot_sysfs remove
+  4183:[2026-10-31 00:37:11] lb chroot_selinuxfs remove
+  4184:[2026-10-31 00:37:12] lb chroot_proc remove

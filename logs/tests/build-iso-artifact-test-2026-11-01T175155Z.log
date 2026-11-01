@@ -1,0 +1,40 @@
+=== seed: a stray ISO from a run that died, plus a previous archive and a previous log ===
+  previous archive sha256 = 75c5b400734536d6f12a8e35288e5bcee017997b6182794b3bce63bd7ac3cf67
+
+=== run 1 ===
+  lb build exit: 0 (2026-11-01T175203Z .. 2026-11-01T175203Z)
+  artifact: /tmp/arttest/artifacts/2026-11-01T175203Z/live-image-amd64.hybrid.iso
+    size: 4096 bytes
+    sha256: 6896d9ea3f73a4434f5832bc65714e7d066f177373f36f34dc8a6f735daa41b1
+    recorded in: logs/M1-artifact-2026-11-01T175203Z.txt
+  exit=0
+  PASS  run 1 exits 0
+  PASS  the stray ISO was moved out of live/, not deleted with it
+  PASS  the previous run's archive survived the rsync --delete
+  PASS  the previous run's log in $WORK/logs survived
+  PASS  run 1 archived its ISO under artifacts/<START>/
+  PASS  live/ is left with no ISO for the next run to trip over
+  PASS  one artifact record was written into logs/
+  PASS  the record's size line matches the archived file
+  PASS  the record's sha256 matches the archived file
+
+=== run 2 — the second invocation must not reach run 1's archive ===
+  lb build exit: 0 (2026-11-01T175209Z .. 2026-11-01T175209Z)
+  artifact: /tmp/arttest/artifacts/2026-11-01T175209Z/live-image-amd64.hybrid.iso
+  exit=0
+  PASS  run 2 exits 0
+  PASS  run 1's archived ISO is byte-identical after run 2
+  PASS  run 2 wrote its own record, so two runs are two artifacts
+  PASS  two archives exist side by side
+
+=== run 3 — lb build fails; a failed run must not look like a success ===
+  lb build exit: 1 (2026-11-01T175211Z .. 2026-11-01T175211Z)
+  artifact: /tmp/arttest/artifacts/2026-11-01T175211Z/live-image-amd64.hybrid.iso
+  exit=1
+  PASS  run 3 exits non-zero, i.e. the failure is not swallowed
+  PASS  the record run 3 wrote says the build failed
+  PASS  no record anywhere claims exit 0 for the failed run
+
+=== every file the three runs left in artifacts/ ===
+      4096 /tmp/arttest/artifacts/2026-11-01T175211Z/live-image-amd64.hybrid.iso
+RESULT: 16 passed, 0 failed

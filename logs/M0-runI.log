@@ -1,0 +1,15 @@
+#### RUN I start 2026-10-30T19:16:53+03:00
+2026-10-30T19:17:00+03:00 info kvm -> kvm support: enabled (qemu)  
+2026-10-30T19:17:03+03:00 info status -> VM status: running (qemu)  
+2026-10-30T19:17:28+03:00 enter sent
+2026-10-30T19:17:53+03:00 frame I-boot-30 8e1be30e dims=800 600
+2026-10-30T19:18:54+03:00 frame I-boot-60 fddd727d dims=1280 800
+2026-10-30T19:19:54+03:00 frame I-boot-120 1b50b1f2 dims=1280 800
+2026-10-30T19:20:54+03:00 frame I-boot-180 fddd727d dims=1280 800
+2026-10-30T19:21:54+03:00 frame I-boot-240 1b50b1f2 dims=1280 800
+2026-10-30T19:22:00+03:00 frame I-250-wake fedecaec dims=1280 800
+2026-10-30T19:22:08+03:00 frame I-255-osrelease 6f3f17da dims=1280 800
+2026-10-30T19:22:14+03:00 frame I-259-uname MISSING
+2026-10-30T19:22:23+03:00 frame I-263-cmdline MISSING
+2026-10-30T19:22:30+03:00 frame I-267-end 62ff1562 dims=1280 800
+#### RUN I done 2026-10-30T19:22:33+03:00

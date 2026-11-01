@@ -1,0 +1,173 @@
+Which Recommends --apt-recommends false actually turned off, run 2026-10-30.
+
+Follow-up to logs/M1-recommends-delta.txt. The delta counted 319 packages that
+Recommends would have added; it did not say which of them a session needs.
+Answering that needs the dependency edges, so they were read out of the archive
+index rather than recalled:
+  flat2.awk over trixie main + trixie-updates Packages -> 68820 lines of <pkg>TAB<Recommends>
+  for each candidate: every package whose Recommends field names it, plus whether
+  the candidate appears in the 319 (membership read from the delta log itself).
+Reader's note: a Recommends is a runtime expectation, not an install-time one.
+Absent below means absent from the image; it does not yet mean a broken session.
+
+=== the candidates, and what turns off with them ===
+--- wpasupplicant
+    recommended by: connman
+    recommended by: dhcpcd-gtk
+    recommended by: dhcpcd
+    recommended by: geoclue-2.0
+    recommended by: network-manager
+    recommended by: task-laptop
+    its own Recommends: (none)
+    in the 319: YES -> not installed while --apt-recommends false
+--- wireless-regdb
+    recommended by: iwd
+    recommended by: iw
+    recommended by: network-manager
+    its own Recommends: (none)
+    in the 319: YES -> not installed while --apt-recommends false
+--- gvfs
+    recommended by: atril
+    recommended by: cheese
+    recommended by: easytag
+    recommended by: engrampa
+    recommended by: file-roller
+    recommended by: gnome-calculator
+    recommended by: gnome-panel
+    recommended by: gnome-system-monitor
+    recommended by: gnome-terminal
+    recommended by: gvfs-common
+    recommended by: gvfs-daemons
+    recommended by: hitori
+    its own Recommends: (none)
+    in the 319: YES -> not installed while --apt-recommends false
+--- tumbler
+    recommended by: ristretto
+    recommended by: thunar
+    recommended by: xfdesktop4
+    its own Recommends: (none)
+    in the 319: YES -> not installed while --apt-recommends false
+--- udisks2
+    recommended by: calibre
+    recommended by: enlightenment
+    recommended by: fbx-all
+    recommended by: fwupd
+    recommended by: hardinfo2
+    recommended by: kodi-bin
+    recommended by: libkf5solid-bin
+    recommended by: libkf6solid-bin
+    recommended by: spacefm
+    recommended by: thunar
+    recommended by: udevil
+    its own Recommends: dosfstools, e2fsprogs, eject, ntfs-3g, polkitd, libpam-systemd, exfatprogs
+    in the 319: YES -> not installed while --apt-recommends false
+--- xdg-user-dirs
+    recommended by: flatpak
+    recommended by: libglib2.0-0t64
+    recommended by: python3-jarabe
+    recommended by: thunar
+    recommended by: xfdesktop4
+    its own Recommends: (none)
+    in the 319: YES -> not installed while --apt-recommends false
+--- xdg-utils
+    recommended by: astroid
+    recommended by: budgie-desktop-environment
+    recommended by: eiskaltdcpp-web
+    recommended by: fccexam
+    recommended by: filezilla
+    recommended by: fldigi
+    recommended by: flmsg
+    recommended by: freedink-dfarc
+    recommended by: git-credential-oauth
+    recommended by: gnumed-client
+    recommended by: gpicview
+    recommended by: gscan2pdf
+    its own Recommends: libfile-mimeinfo-perl, libnet-dbus-perl, libx11-protocol-perl, x11-utils, x11-xserver-utils
+    in the 319: YES -> not installed while --apt-recommends false
+--- xdg-desktop-portal
+    recommended by: flatpak
+    recommended by: libglib2.0-tests
+    recommended by: steam-libs
+    its own Recommends: librsvg2-common
+    in the 319: YES -> not installed while --apt-recommends false
+--- xdg-desktop-portal-gtk
+    recommended by: budgie-desktop-environment
+    recommended by: cinnamon
+    recommended by: enlightenment
+    recommended by: flameshot
+    recommended by: flatpak
+    recommended by: libwebkit2gtk-4.1-0
+    recommended by: libwebkitgtk-6.0-4
+    recommended by: phosh-core
+    recommended by: plasma-desktop
+    recommended by: steam-libs
+    its own Recommends: (none)
+    in the 319: YES -> not installed while --apt-recommends false
+--- mate-polkit
+    recommended by: mate-applets
+    recommended by: mate-session-manager
+    recommended by: xfce4
+    its own Recommends: (none)
+    in the 319: YES -> not installed while --apt-recommends false
+--- modemmanager
+    recommended by: geoclue-2.0
+    recommended by: libmm-glib0
+    recommended by: mmsd-tng
+    recommended by: network-manager
+    recommended by: python3-jarabe
+    recommended by: sugar-session
+    its own Recommends: libmbim-utils, libqmi-utils, usb-modeswitch
+    in the 319: YES -> not installed while --apt-recommends false
+--- ppp
+    recommended by: network-manager
+    recommended by: xtel
+    its own Recommends: (none)
+    in the 319: YES -> not installed while --apt-recommends false
+--- dnsmasq-base
+    recommended by: incus-base
+    recommended by: lxd
+    recommended by: network-manager
+    its own Recommends: dns-root-data
+    in the 319: YES -> not installed while --apt-recommends false
+--- desktop-base
+    recommended by: gdm3
+    recommended by: icewm-common
+    recommended by: lightdm-gtk-greeter
+    recommended by: lxdm
+    recommended by: mate-desktop-environment
+    recommended by: sddm-theme-debian-breeze
+    recommended by: slick-greeter
+    recommended by: xfce4
+    its own Recommends: plymouth-label
+    in the 319: YES -> not installed while --apt-recommends false
+--- gnome-icon-theme
+    recommended by: easytag
+    recommended by: lios
+    recommended by: lxlauncher
+    recommended by: network-manager-applet
+    recommended by: obsession
+    recommended by: screenkey
+    its own Recommends: (none)
+    in the 319: YES -> not installed while --apt-recommends false
+--- tango-icon-theme
+    recommended by: task-xfce-desktop
+    recommended by: xfce4
+    its own Recommends: (none)
+    in the 319: YES -> not installed while --apt-recommends false
+
+=== Recommends leaving the packages the selection installs ===
+  xfce4 Recommends: desktop-base, mate-polkit, tango-icon-theme, thunar-volman (>= 4.20.0), xfce4-notifyd, xorg
+  xfce4-session Recommends: default-dbus-session-bus | dbus-session-bus, default-logind | logind, libglib2.0-bin, light-locker | xfce4-screensaver | xscreensaver | mate-screensaver, systemd-sysv, upower, xfdesktop4, xfwm4
+  thunar Recommends: default-dbus-session-bus | dbus-session-bus, gvfs, policykit-1-gnome | polkit-1-auth-agent, thunar-volman, tumbler, udisks2, xdg-user-dirs, libxfce4panel-2.0-4 (>= 4.13.0)
+  network-manager Recommends: ppp, dnsmasq-base, modemmanager, wireless-regdb, wpasupplicant, libpam-systemd, polkitd, udev, network-manager-l10n
+  flatpak Recommends: ca-certificates, default-dbus-system-bus | dbus-system-bus, desktop-file-utils, hicolor-icon-theme, gtk-update-icon-cache, libpam-systemd, p11-kit, polkitd, shared-mime-info, xdg-desktop-portal (>= 1.6), xdg-desktop-portal-gtk (>= 1.6) | xdg-desktop-portal-backend, xdg-user-dirs
+  pavucontrol Recommends: pulseaudio | pipewire-pulse
+  lightdm Recommends: xserver-xorg
+  xfce4-power-manager Recommends: default-logind | logind, xfce4-power-manager-plugins
+
+=== candidates checked and found already covered by a Depends ===
+  upower: not in the 319 -> arrives by Depends
+  xfdesktop4: not in the 319 -> arrives by Depends
+  xfwm4: not in the 319 -> arrives by Depends
+  polkitd: not in the 319 -> arrives by Depends
+  gvfs-backends: not in the 319 -> arrives by Depends

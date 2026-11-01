@@ -1,0 +1,17 @@
+phantomos-config — SKELETON, ships no configuration yet
+=====================================================
+
+This package exists so that the package set installed in an image matches the
+inventory in the spec. The inventory names phantomos-config in the base set; if this
+package did not exist, the M1 inventory diff would have to be corrected for a package
+that is simply not built yet, which is the kind of exception that outlives its reason.
+
+Content lands in M2, per the spec's §4.3: Xfconf and gsettings defaults, the dotfile
+skeleton, sysctl, AppArmor local profiles, systemd user-unit drop-ins, nftables rules,
+the Firefox enterprise policies (§6.9) and the live-console autologin decision (§12
+item 10). The install rule from §4.3 applies then: postinst writes only files that are
+absent, never overwrites a user's edit.
+
+To check whether you are looking at the real thing:
+  dpkg -L phantomos-config
+Until M2 that list contains this file and nothing else.

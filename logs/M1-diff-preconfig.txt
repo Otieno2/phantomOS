@@ -1,0 +1,87 @@
+=== the image's own records (from binary/live/filesystem.squashfs) ===
+installed:                 838 packages
+  manual selections:       156
+  dependency closure:      682 (apt Auto-Installed: 1)
+expected selections:       191
+  of which bootstrap:      144 (cache/packages.bootstrap)
+  of which §5/live/ours:   49 (2 of these are in both buckets)
+
+cross-check against live-build's chroot.packages.live: identical
+
+=== direction 1: named by §5, not installed in the image (basis: dpkg's installed set) ===
+(empty)
+
+  how the 49 names got there:
+    named on an apt command line (manual selection): 7
+    arrived through a dependency edge (auto-marked): 42
+      auto  apparmor
+      auto  apt-listchanges
+      auto  build-essential
+      auto  ca-certificates
+      auto  cryptsetup
+      auto  firefox-esr
+      auto  flatpak
+      auto  fonts-inter
+      auto  fonts-jetbrains-mono
+      auto  fonts-montserrat
+      auto  git
+      auto  lightdm
+      auto  light-locker
+      auto  lvm2
+      auto  mousepad
+      auto  mpv
+      auto  network-manager
+      auto  network-manager-applet
+      auto  openssh-client
+      auto  pavucontrol
+      auto  phantomos-config
+      auto  phantomos-release
+      auto  pipewire
+      auto  pipewire-pulse
+      auto  plank
+      auto  python3-venv
+      auto  ristretto
+      auto  rofi
+      auto  sudo
+      auto  thunar-archive-plugin
+      auto  unattended-upgrades
+      auto  wireplumber
+      auto  xfce4
+      auto  xfce4-battery-plugin
+      auto  xfce4-genmon-plugin
+      auto  xfce4-notifyd
+      auto  xfce4-power-manager
+      auto  xfce4-screenshooter
+      auto  xfce4-taskmanager
+      auto  xfce4-terminal
+      auto  xfce4-whiskermenu-plugin
+      auto  xorg
+
+=== direction 2: selected in the image, not named by §5 ===
+  EXTRA alsa-topology-conf
+  EXTRA firmware-ath9k-htc
+  EXTRA firmware-carl9170
+  EXTRA firmware-linux-free
+  EXTRA indi-dsi
+  EXTRA linux-image-amd64
+  EXTRA wireless-regdb
+
+=== guard: §5 drops present anyway ===
+(none)
+
+=== §8 guard: the build pool inside the image ===
+(none)
+
+channels the image ships with (/etc/apt/sources.list and sources.list.d inside it):
+  deb http://deb.debian.org/debian/ trixie main
+  deb-src http://deb.debian.org/debian/ trixie main
+  deb http://security.debian.org/ trixie-security main
+  deb-src http://security.debian.org/ trixie-security main
+  deb http://deb.debian.org/debian/ trixie-updates main
+  deb-src http://deb.debian.org/debian/ trixie-updates main
+
+build tree, not the image (left by the archives re-bind after the snapshot — see header):
+  chroot/opt/phantomos-build/pool
+  chroot/etc/apt/sources.list.d/phantomos.list
+
+M1 EXIT CRITERION: NOT MET (§5 diff not empty)

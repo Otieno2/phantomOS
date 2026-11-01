@@ -1,0 +1,117 @@
+# Commands typed into the running M1 image, one per line, photographed after each.
+# Consumed by harness/boot-test.sh --commands. A line starting with KEY: sends a raw
+# key combo instead of text; # starts a comment.
+#
+# What this set is for: the build-time package lists say what live-build installed.
+# These say what the machine that booted actually is — §11's "a control that cannot be
+# checked on a running install is not a control", applied to the inventory itself.
+#
+# One rule for adding a line: harness/boot-test.sh types by keysym, and its table covers
+# space / . - , ; = _ | \ : and alphanumerics. There is no keysym for < > ( ) & $ { }, so
+# those are logged UNMAPPED and the command arrives at the guest broken — that is how run J
+# lost the underscores in fw_platform_size and nothing complained. (`_` itself is mapped now,
+# as shift-minus; this run is the first that gets to check it actually lands.)
+# So: no redirects, no subshells, no variables here. Type exactly what should appear in the
+# frame.
+
+# If the desktop session took tty1 (live-config + a graphical system), move to a text
+# VT. Harmless when already there; run G is the reason it is explicit: typing into a
+# console that is not a shell produces frames that look like a hang.
+KEY: ctrl-alt-f2
+
+# Login probe. Two lines, deliberately first, because the answer decides whether the 26
+# commands below are evidence or noise: if there is no session, everything after this is
+# typed at a login prompt and produces "Login incorrect" — which is run F's transcript
+# (logs/evidence/M0-serial-transcript.txt:1829-1845), where `cat /etc/os-release` was fed
+# to `debian login:` as a username and nothing in the harness objected.
+#
+# The credentials are not a guess. They are read out of the shipped image:
+# /usr/lib/live/init-config.sh sets LIVE_USERNAME="user", and
+# /usr/lib/live/config/0030-user-setup carries _PASSWORD="8Ab05sVQ4LLps" under the comment
+# "Default password is: live". Both were extracted from run M's filesystem.squashfs on
+# 2026-11-01, not recalled from SPEC §9.
+#
+# THREE outcomes are possible, and two of them are success — read the frames accordingly.
+# This matters because the predicted outcome is the one that looks like a failure.
+#
+#   (a) No account exists. tty2 prints `debian login: user (automatic login)` then
+#       `Authentication failure`, and these two lines are eaten by `login:` as a bad
+#       username and password. This is run M's frame cmd-2 and the defect in
+#       logs/M1-no-live-user.txt: 0030-user-setup gates on pkg_is_installed "user-setup"
+#       and run M's image had no user-setup stanza, because live-config only Recommends it
+#       and the build passes --apt-recommends false.
+#   (b) The account exists AND autologin wins the race. /usr/lib/systemd/system-generators/
+#       live-config-getty-generator, read out of run M's squashfs, writes
+#       `ExecStart=-/sbin/agetty --autologin ${LIVE_USERNAME} --noclear %I $TERM` into
+#       getty@ttyN.service.d/live-config_autologin.conf for every N in `seq 1 6` (lines
+#       74-86), gated only on LIVE_USERNAME being non-empty — it does not check the user
+#       exists, which is exactly why (a) looks the way it does. So tty2 can already be a
+#       shell by the time the harness types, and then these two lines are commands:
+#           bash: user: command not found
+#           bash: live: command not found
+#       **Those two errors are the success signal, not a failure.** This is the predicted
+#       run N outcome.
+#   (c) The account exists and a prompt is still up. `user` is accepted, `live`
+#       authenticates, and the frame after that is a shell. Also success.
+#
+# In (b) and (c) the frames from cmd-3 on are evidence. In (a) they are not, and the run
+# should be read as a failed milestone rather than a failed command set.
+user
+live
+
+cat /etc/os-release
+uname -a
+dpkg -l | wc -l
+apt-mark showmanual | wc -l
+dpkg -l phantomos-desktop
+dpkg -l phantomos-base phantomos-release phantomos-config
+
+# §8: no dead channel in a shipped image. Every listing here must show Debian only. The
+# pool is mounted into the build chroot rather than copied (§9.1), so its mountpoint and
+# its trusted.gpg.d key are the two things that could plausibly survive into an image by
+# accident — a leftover empty directory is harmless, a leftover sources entry is the dead
+# channel §6.6 forbids. sources.list is also the check on which mirror ships: live-build
+# writes it from LB_PARENT_MIRROR_*, so if a build ever fetches from a different mirror
+# than it ships, this is where that shows up (§9.1).
+cat /etc/apt/sources.list
+ls /etc/apt/sources.list.d/
+ls /etc/apt/trusted.gpg.d/
+ls /usr/share/keyrings/
+ls / | head -30
+ls /opt /var/tmp
+mount | grep -i phantomos
+
+# §5's 2026-10-31 hardware-enablement amendment, checked on the machine rather than in the
+# build log: the six named packages present, the dropped one absent, and the files that
+# justify two of the names actually on disk. skl_hda_dsp_generic-tplg.bin is the path that
+# put alsa-topology-conf in live-build's enumeration in the first place. indi-dsi must
+# answer "no packages found matching".
+#
+# The regulatory.db lines are a question, not a claim. M0's build log has
+# `update-alternatives: using /lib/firmware/regulatory.db-debian to provide
+# /lib/firmware/regulatory.db` inside the same setup sequence, so a symlink exists; which
+# package owns it, and whether the kernel-visible path is /lib or /usr/lib, is what the
+# dpkg -S below answers. No owner has been asserted for it in this repo before now.
+dpkg -l linux-image-amd64 firmware-linux-free firmware-ath9k-htc firmware-carl9170 wireless-regdb alsa-topology-conf
+dpkg -l indi-dsi
+ls -l /lib/firmware/regulatory.db /usr/lib/firmware/regulatory.db*
+dpkg -S /lib/firmware/regulatory.db /usr/lib/firmware/regulatory.db
+ls /usr/lib/firmware/skl_hda_dsp_generic-tplg.bin
+ls /lib/firmware | wc -l
+modinfo iwlwifi
+
+# The metapackage is installed but has no provider: apt-cache policy answering with an
+# installed version and no candidate is the expected shape of "no PhantomOS channel".
+apt-cache policy phantomos-base
+
+# Does the build host's --apt-recommends false survive into the image as installed
+# behaviour? This file's presence and contents answer it; nobody has checked yet.
+cat /etc/apt/apt.conf.d/00recommends
+
+# §12 item 10 (live console autologin) is a decision PhantomOS has not made yet; this is
+# the desktop image, so the answer here is evidence for that decision too.
+id
+who
+systemctl is-enabled lightdm
+
+echo M1-EVIDENCE-END

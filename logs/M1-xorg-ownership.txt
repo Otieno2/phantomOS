@@ -1,0 +1,212 @@
+Is `xorg` load-bearing, or is it a name in a manifest that §5 never asked for?
+Measured 2026-11-01T18:54Z..19:04Z on the build host, read-only, while run N built.
+
+Why this file exists
+--------------------
+§10's M1 exit criterion has two halves:
+
+    Exit: `dpkg -l` from the built image diffed against §5 comes back empty, in both
+    directions.   ...  §5 inventory complete with a justification per entry.
+
+The first half went green on run M (logs/M1-diff-runM.txt:86, "M1 EXIT CRITERION: MET").
+The second half had never been run as a check against §5's *text*. The reason it could go
+unnoticed is in scripts/m1-diff.sh:37, which states the bridge the diff relies on:
+
+    manifests/base.pkgs, manifests/desktop.pkgs  — §5's inventory. This is what the exit
+          criterion actually means.
+
+The diff compares manifest against image, and then trusts that sentence. A name in a
+manifest that §5 does not contain is invisible to both directions: direction 1 finds it
+installed, direction 2 finds it expected. So the only way to test the bridge is to read
+§5 and test every manifest name against it. That was done, and it found one name with no
+§5 basis. This file settles whether that name is load-bearing — must be justified in §5 —
+or decorative — must come out of the manifest.
+
+Host and index identity
+-----------------------
+    Debian 13 trixie, live-build 1:20250505+deb13u1
+    four Packages indices under /var/lib/apt/lists:
+      deb.debian.org_debian_dists_trixie_main_binary-amd64_Packages              56 620 099 B  mtime 2026-09-12 10:29:52 +0300
+      deb.debian.org_debian_dists_trixie-backports_main_binary-amd64_Packages     2 074 082 B  mtime 2026-10-29 05:01:19 +0300
+      deb.debian.org_debian_dists_trixie-updates_main_binary-amd64_Packages           1 406 B  mtime 2026-10-22 23:01:36 +0300
+      security.debian.org_..._dists_trixie-security_main_binary-amd64_Packages    1 855 409 B  mtime 2026-10-29 04:58:55 +0300
+    partial/: empty, and no apt-get update running during the reads, so no torn read.
+
+1. The coverage check: every manifest name against §5's own text
+----------------------------------------------------------------
+§5 is docs/SPEC.md lines 142-342 (§6 begins at 343). Extracted, then every name in every
+manifest tested for presence in that text. (Both numbers moved while this was being written
+up: the §5 amendment this file justifies is 46 lines and the `xorg` comment below is 6, so
+after the edits §5 is lines 142-388 and `xorg` sits at manifests/desktop.pkgs:38. Every line
+number in this file is as measured, before those two edits.)
+
+    manifests/base.pkgs      18 of 18 names present in §5
+    manifests/live.pkgs       0 of  7 present — by design. That file's own header says
+                             "§5's inventory is about the latter, so nothing here is
+                             justified by §5, and the M1 diff treats this file as its own
+                             bucket" (scripts/m1-diff.sh:39-41 carries the same rule).
+    manifests/desktop.pkgs   29 of 31 present. The two absent:
+                             network-manager-applet   CLEARED, see below
+                             xorg                     NOT CLEARED, this file is about it
+
+`network-manager-applet` is cleared by §5 line 16, which reads "network-manager +
+nm-applet", against manifests/desktop.pkgs:7-10, which records the substitution:
+`"nm-applet" -> network-manager-applet (network-manager-gnome is only a metapackage for
+this plus nm-connection-editor, and §5 names the applet, not the editor)`. The name differs;
+the justification exists and is written down where the difference is.
+
+`xorg` has no such note. It sits at manifests/desktop.pkgs:31 under the bucket label
+`# Session and display`, beside `lightdm` and `light-locker`, and carries no individual
+justification. And §5 does not mention it: a case-insensitive scan of all 201 lines of §5
+for `xorg`, `xserver`, `x11`, `x server`, `display server` returns **nothing**. §5 line 156
+goes straight from the session lock to the audio stack:
+
+    lightdm, light-locker 1.8.0 (session lock), pipewire + pipewire-pulse + wireplumber + pavucontrol,
+
+Two defects in how this was first measured, both discarded rather than reported:
+  * the first pass used `if ! grep -qF ...` inside a Git Bash `while read` loop, and Git Bash
+    answered `!: command not found` on every iteration, so its "missing: 0" counted nothing.
+    Rewritten as `grep -qF -- "$p" file || echo "  NOT IN S5: $p"`.
+  * the second pass extracted the `Recommends:` field with `substr($0,14,...)` where the field
+    name plus colon plus space is 12 characters, so every value printed two characters short:
+    `xserver-xorg` came out as `server-xorg`, `desktop-base` as `esktop-base`, `xorg` as `org`.
+    Corrected to `substr(...,13)`; section 3 below is the corrected output.
+  * the second pass also fed `comm` unsorted input and it said so twice ("file 2 is not in
+    sorted order"). Its intersections were redone under `export LC_ALL=C` with `sort -u`.
+
+2. How `xorg` is in the image at all — and why "auto-marked" is not the defect
+------------------------------------------------------------------------------
+Run M's image is 834 packages: 150 manual selections, 684 with `Auto-Installed: 1`
+(logs/M1-diff-runM.txt:2-4). Of the 55 names this project supplies, logs/M1-diff-runM.txt:15-16
+reports 8 manual and 47 auto-marked. The 8 manual ones are exactly:
+
+    linux-image-amd64, live-boot, live-config, live-config-systemd, nftables,
+    phantomos-base, phantomos-desktop, systemd-sysv
+
+i.e. the two metapackages plus what live-build's own stages install by name. So the 47 —
+which include `xfce4`, `lightdm`, `firefox-esr`, `network-manager`, `pipewire`, `git`,
+`flatpak`, `xorg` — are auto-marked because they are `Depends:` of a metapackage that *is*
+a manual selection. That is scripts/build-packages.sh working as designed: deps_of() at
+lines 118-132 turns manifests/desktop.pkgs into phantomos-desktop's Depends, and
+scripts/m1-diff.sh:26-33 already says so ("for the names carried by
+phantomos-base/phantomos-desktop that is the expected shape").
+
+Measured from the pool, not recalled:
+
+    /opt/phantomos-build/pool/phantomos-desktop_0.1.0-1_all.deb
+    1032 bytes, mtime 2026-11-01 20:07:43.846078751 +0300
+    sha256 b04b4eeec2b46080e3f1bea7ff065c8682eef2cd8a66cb6d8cc64c0c7a30575d
+
+    Depends: phantomos-base, xfce4, xfce4-terminal, xfce4-whiskermenu-plugin, xfce4-notifyd,
+      xfce4-power-manager, xfce4-battery-plugin, xfce4-screenshooter, xfce4-taskmanager,
+      xfce4-genmon-plugin, lightdm, light-locker, xorg, rofi, plank, thunar-archive-plugin,
+      pipewire, pipewire-pulse, wireplumber, pavucontrol, network-manager,
+      network-manager-applet, firefox-esr, mpv, ristretto, mousepad, git, build-essential,
+      python3-venv, fonts-inter, fonts-montserrat, fonts-jetbrains-mono
+
+32 names = the 31 in manifests/desktop.pkgs plus phantomos-base, which deps_of() adds at
+line 122 and which no manifest carries. Every one of the 31 is present; nothing in
+desktop.pkgs is missing from the generated Depends. `xorg` is a **hard Depends**, so it
+survives `APT::Install-Recommends=false` and it is not at the mercy of a Recommends edge.
+
+3. The load-bearing test: would an X server arrive without the name?
+-------------------------------------------------------------------
+A Recommends is off in this build, from two places that agree:
+    live/auto/config:122                     --apt-recommends false \
+    /usr/share/live/build/functions/packages.sh:56
+        Chroot chroot "apt-get install -o APT::Install-Recommends=false ${APT_OPTIONS} ${_LB_PACKAGES}"
+
+Every route to an X server in trixie, read out of the indices:
+
+  (a) packages whose **Depends** names `xserver-xorg` or `xorg`, whole archive: **8**
+        budgie-desktop-environment, cinnamon-core, keyboards-rg, sddm, task-desktop,
+        wdm, xorg, xserver-xspice
+      intersected with run M's 834-package image: **xorg**, and nothing else.
+      Excluding xorg itself: empty.
+
+  (b) packages whose **Recommends** names one, i.e. all switched off here:
+        lightdm   Recommends: xserver-xorg
+        xfce4     Recommends: desktop-base, mate-polkit, tango-icon-theme, thunar-volman (>= 4.20.0), xfce4-notifyd, xorg
+        xinit     Recommends: xserver-xorg | xserver, xterm | x-session-manager | x-window-manager | x-terminal-emulator
+        gdm3, junior-desktop, kde-plasma-desktop, lxde, xorgxrdp   (none installed)
+
+  (c) `lightdm`'s own Depends, in full, contains no X server at all:
+        adduser, dbus, libpam-systemd | logind, lightdm-gtk-greeter | lightdm-greeter,
+        debconf (>= 0.5) | debconf-2.0, libaudit1 (>= 1:2.2.1), libc6 (>= 2.34),
+        libgcrypt20 (>= 1.11.0), libglib2.0-0t64 (>= 2.80.0), libpam0g (>= 0.99.7.1),
+        libxcb1, libxdmcp6
+      A token scan of that field for xserver*/xorg/x11-common/xinit returns nothing.
+
+Reverse-Depends restricted to the image, so the chain is complete rather than assumed:
+
+    who in the image hard-Depends on xserver-xorg-core: 9 of 41 archive-wide
+        xserver-xorg, xserver-xorg-input-libinput,
+        xserver-xorg-video-{amdgpu,ati,fbdev,nouveau,radeon,vesa,vmware}
+    who in the image hard-Depends on xserver-xorg:      1 of 7 archive-wide
+        xorg
+    who in the image hard-Depends on xorg:              0 of 1 archive-wide
+        (the only package in the whole archive that hard-depends on xorg is task-desktop,
+         and it is not in this image)
+
+So the chain runs one way: `phantomos-desktop` -> `xorg` -> `xserver-xorg` ->
+`xserver-xorg-core` + the video and input driver sets. **Delete the `xorg` line from
+manifests/desktop.pkgs and there is no X server in the image by any other route.** lightdm
+would install and would have nothing to start; §9's M1-boot photographs show the greeter
+that exists only because that line is there.
+
+What `xorg` 1:7.7+24+deb13u1 brings with it (its own Depends, and whether run M has each):
+
+    libgl1  libgl1-mesa-dri  libglu1-mesa  x11-apps  x11-session-utils  x11-utils
+    x11-xkb-utils  x11-xserver-utils  xauth  xfonts-100dpi  xfonts-75dpi  xfonts-base
+    xfonts-scalable  xfonts-utils  xinit  xkb-data  xorg-docs-core  xserver-xorg
+        — all 18 present in run M's image
+    xterm | x-terminal-emulator
+        — xterm is **not** in the image; the alternative is satisfied by xfce4-terminal,
+          which is the only provider of x-terminal-emulator among the 834. That is why the
+          image has no xterm and is not missing a dependency.
+
+Versions, as the index gives them and as run M actually unpacked them (they agree):
+
+    xorg                1:7.7+24+deb13u1        Unpacking xorg (1:7.7+24+deb13u1)
+    xserver-xorg        1:7.7+24+deb13u1        Unpacking xserver-xorg (1:7.7+24+deb13u1)
+    xserver-xorg-core   2:21.1.16-1.3+deb13u4   Unpacking xserver-xorg-core (2:21.1.16-1.3+deb13u4)
+    x11-common          1:7.7+24+deb13u1        Unpacking x11-common (1:7.7+24+deb13u1)
+    xinit               1.4.2-1                 Unpacking xinit (1.4.2-1)
+    lightdm             1.32.0-6+b2             Unpacking lightdm (1.32.0-6+b2)
+    light-locker        1.8.0-3+b1
+    xfce4               4.20.1                  (§3.1 already carries this row)
+
+4. What this does not claim
+---------------------------
+  * **No build was run with the line removed.** The conclusion is from the archive's
+    dependency edges and from the metapackage's generated Depends, both read out of files,
+    not from an experiment. A build with `xorg` dropped would be the direct test and has not
+    been done; it is also not cheap — §9.1 puts a run at ~1 h 45 m.
+  * The claim is about *this* selection. `task-desktop` is a real alternative route: it
+    Depends on `xorg, xserver-xorg-video-all, xserver-xorg-input-all, desktop-base` and
+    `tasksel (= 3.81)`. §5 does not name it, and naming it would mean taking tasksel and
+    desktop-base and letting a Debian task choose the session — which is the "default
+    install with a new name" §5's inventory tail exists to refuse.
+  * `xorg` is not the only possible X-server name. `xserver-xorg` alone would give the
+    server plus driver metapackages without xorg's fonts, x11-apps, x11-utils or xinit;
+    `xserver-xorg-core` alone would give the Xorg binary with **no** input or video driver,
+    since those come in through `xserver-xorg`'s Depends. `xorg` is the name that matches
+    what §5's session actually needs and what `xfce4`'s own Recommends would have chosen.
+  * Whether X11 rather than Wayland is right is not decided here. §7.2:458 already records
+    the session is X11 ("built for X11, which matches our lightdm + Xfce session"), and
+    lightdm + Xfce 4.20 on trixie has no Wayland session to name. This file only establishes
+    that the X server the spec already assumes is a package §5 has to name.
+
+5. Hygiene
+----------
+Read-only throughout. No mount was taken by anything in this work, and nothing was written
+under /root/phantomos-m1/live. Run N's wrapper (pid 73192,
+/root/phantomos-m1/.build-iso.running.sh) was alive at every one of the four reads.
+`grep -c phantomos /proc/mounts` read 3, then 0, then 4, then 4 across those reads — that
+variation is run N entering and leaving live-build's chroot_prep mount stages (it moved
+from `lb chroot_package-lists live` to `lb installer_chroot` to `lb chroot_archives chroot
+install` while this was running), not anything this file did.
+
+Run N at the last read (2026-11-01T19:04:21Z): logs/lb-build-2026-11-01T172102Z.log,
+4256 lines, 0 `E:` lines, last stage `[2026-11-01 21:59:42] lb chroot_archives chroot install`
+(host-local EAT; `LB_UTC_TIME="false"`, see logs/M1-buildid-per-run.txt).

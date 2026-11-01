@@ -1,0 +1,52 @@
+deb file:///opt/phantomos-build/pool ./
+#
+# Why this deb line is the FIRST line of the file, and why that is not a style choice.
+# live-build does not let apt read this file to decide what to mount; its own extractor
+# decides, and the extractor reads one line:
+#
+#   /usr/lib/live/build/chroot_archives:67  Chroot_try_bind_path_from_list
+#   functions/chroot_bind_path.sh:63-72     URI=$(sed --regexp-extended \
+#                                             -e 's/.*(file:\/\/[^ ]+).*/\1/' ${FILE} | head -1)
+#
+# `head -1` after the sed, so the *first* line of the file is the only line examined for a
+# file: URI. A comment block above the deb line yields the comment's own text as $URI, the
+# ^file://(localhost)?/ test fails, no bind mount happens, and apt then correctly reports the
+# pool as missing. Measured twice, both times by a failed build: logs/M1-lb-build-pool-order.log
+# and logs/M1-lb-build-first-line.log, and the unit control in
+# logs/M1-pool-bind-first-line.txt. scripts/build-packages.sh checks line 1, not just
+# presence, for exactly this reason.
+#
+# Why /opt and not /var/tmp, which is where this pool used to live. A bound archive is
+# visible inside the chroot at the same absolute path, and live-build's default hooks clean
+# the chroot after the packages are installed:
+#
+#   8070-remove-temporary-files.hook.chroot:6-12
+#       for _DIRECTORY in /tmp /var/tmp; do rm -rf ${_DIRECTORY}; mkdir -p …; chmod 1777 …
+#
+# rm -rf recurses *through* the bind, so that hook deleted the pool's contents at their
+# source on the build host and then failed to remove the mountpoint itself — EBUSY, non-zero
+# exit, build aborted (logs/M1-lb-build-pool-hook.log:5842-5844, §9.1). The directory-level
+# removals across the whole default normal-hook set are /tmp, /var/tmp, /var/cache/man/* and
+# /var/cache/ldconfig; the pool path must not be under any of them.
+#
+# Flat repository — no dists/ tree and no Suite, because the pool is a directory of
+# metapackages, not a distribution. Three slashes after file: are load-bearing: the bind only
+# matches ^file://(localhost)?/, so file:/opt/... is read as a URI that is not a local path
+# and nothing is mounted (functions/chroot_bind_path.sh:18-37).
+#
+# Verification comes from the matching phantomos.key.chroot, which live-build installs into
+# the chroot's /etc/apt/trusted.gpg.d. This line deliberately carries no [trusted=yes], so
+# an unsigned pool fails the build instead of shipping. See §9.1 for the signed / wrong-key /
+# unsigned measurements.
+#
+# The bind, not a copy: live-build mounts this host directory into the chroot at the same
+# absolute path before its first apt-get update, and the chroot_archives remove step
+# unmounts it, deletes this sources entry (chroot_archives:360-366) and deletes the installed
+# key (:398-409), then runs apt-get update again with only the shipped channels (:475). So
+# §8's "no dead channel in a shipped image" is live-build's own behaviour here rather than a
+# cleanup step of ours — and scripts/m1-diff.sh asserts the absence on the built tree rather
+# than relying on the comment.
+#
+# Build-time only: nothing here is a PhantomOS apt channel on a running machine. §12 item 3
+# decides where a real one lives; until then a shipped image has no PhantomOS source at all,
+# which is what §8 requires rather than an HTTP or unsigned one.

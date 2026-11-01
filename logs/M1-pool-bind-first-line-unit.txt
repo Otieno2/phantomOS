@@ -1,0 +1,89 @@
+=== Chroot_try_bind_path, verbatim ===
+1:#!/bin/sh
+2:
+3:## live-build(7) - System Build Scripts
+4:## Copyright (C) 2016-2025 The Debian Live team
+5:## Copyright (C) 2006-2015 Daniel Baumann <mail@daniel-baumann.ch>
+6:##
+7:## This program comes with ABSOLUTELY NO WARRANTY; for details see COPYING.
+8:## This is free software, and you are welcome to redistribute it
+9:## under certain conditions; see COPYING for details.
+10:
+11:
+12:# Try to bind a file URI from the host into the chroot
+13:# - If the URI does not use the scheme 'file' -> does nothing
+14:# - If the URI does not point to an absolute path -> does nothing
+15:#
+16:# $1 = directory of the chroot
+17:# $2 = URI of scheme file (file://localhost/absolute-path or file:///absolute-path)
+18:Chroot_try_bind_path ()
+19:{
+20:	local CHROOT
+21:	local BIND_SRC
+22:	local BIND_DEST
+23:	CHROOT="$(readlink -f ${1})"
+24:	if echo "${2}" | grep -E -q '^file://(localhost)?/'
+25:	then
+26:		BIND_SRC="$(readlink -f $(echo ${2} | sed --regexp-extended -e 's|^file://(localhost)?||'))"
+27:
+28:		BIND_DEST=${CHROOT}${BIND_SRC}
+29:		if [ ! -d "${BIND_DEST}" -o \
+30:			-z "$(cat /proc/mounts | awk -vdir="${BIND_DEST}" '$2 ~ dir { print $2}')" ]
+31:		then
+32:			Echo_message "Binding local repository path ${BIND_SRC}"
+33:			mkdir -p "${BIND_DEST}"
+34:			mount --bind "${BIND_SRC}" "${BIND_DEST}"
+35:		fi
+36:	fi
+37:}
+38:
+39:Chroot_try_unbind_path ()
+40:{
+41:	local CHROOT
+42:	local BIND_SRC
+43:	local BIND_DEST
+44:	CHROOT="$(readlink -f ${1})"
+45:	if echo "${2}" | grep -E -q '^file://(localhost)?/'
+46:	then
+47:		BIND_SRC="$(readlink -f $(echo ${2} | sed --regexp-extended -e 's|^file://(localhost)?||'))"
+48:
+49:		BIND_DEST=${CHROOT}${BIND_SRC}
+50:		if [ -d "${BIND_DEST}" ]
+51:		then
+52:			Echo_message "Unbinding local repository path"
+53:			umount "${BIND_DEST}"  > /dev/null 2>&1 || true
+54:			rmdir --parents "${BIND_DEST}" || true
+55:		fi
+56:	fi
+57:}
+
+=== does the pool exist at the host path the new file names? ===
+total 36
+-rw-r--r-- 1 root root 1954 Oct 30 22:12 InRelease
+-rw-r--r-- 1 root root 3856 Oct 30 22:12 Packages
+-rw-r--r-- 1 root root 1897 Oct 30 22:12 Packages.gz
+-rw-r--r-- 1 root root  964 Oct 30 22:12 phantomos-base_0.1.0-1_all.deb
+
+=== calling Chroot_try_bind_path_from_list /tmp/fakechroot-old /root/phantomos-m1/live/config/archives/phantomos.list.chroot (old shape) ===
+  first line of file: # PhantomOS's own metapackage pool, on the build host at this absolute path. live-build
+  function returned: 0
+  mounts under /tmp/fakechroot-old:
+  is the pool visible through it?
+    (no such directory — nothing was bound)
+
+=== calling Chroot_try_bind_path_from_list /tmp/fakechroot-new /mnt/c/Users/INFINITY/OneDrive/Desktop/phantomOS/live/config/archives/phantomos.list.chroot (new shape) ===
+  first line of file: deb file:///var/tmp/phantomos-build/pool ./
+/usr/share/live/build/functions/chroot_bind_path.sh: line 32: Echo_message: command not found
+  function returned: 0
+  mounts under /tmp/fakechroot-new:
+    /dev/sdd /tmp/fakechroot-new/var/tmp/phantomos-build/pool ext4 rw,relatime,discard,errors=remount-ro,data=ordered 0 0
+  is the pool visible through it?
+    InRelease
+    Packages
+    Packages.gz
+    phantomos-base_0.1.0-1_all.deb
+    (entries: 9)
+  (unmounted again; this was a unit test)
+
+=== leftovers, nothing may stay mounted ===
+  (clean)

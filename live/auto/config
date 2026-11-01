@@ -1,0 +1,137 @@
+#!/bin/sh
+# live/auto/config — the Live-build configuration for the PhantomOS image.
+#
+# `lb config` runs this file whenever it is executable — Maybe_auto_redirect tests `-x
+# auto/config` and re-execs it with the command's arguments
+# (/usr/share/live/build/functions/init.sh), so the only thing that skips it is `lb config
+# noauto`. That is why the call inside says noauto: it would otherwise recurse. Whether a
+# config tree already exists is not part of the condition, so on a resumed build `lb config`
+# re-runs this file; measured 2026-10-30, that re-run is a no-op for the values (the dump
+# came out byte-identical to logs/M1-config-dump.txt). scripts/build-iso.sh runs
+# `lb config` from live/ before `lb build`.
+#
+# Why the settings are spelled out instead of inherited: live-build's defaults
+# belong to the live-build package on the build host, not to this repo, so a
+# toolchain upgrade here would change the artifact without changing anything
+# committed. §11 forbids that. The effective config is the set of LB_* assignments
+# live-build writes into config/{common,bootstrap,chroot,binary,source};
+# scripts/config-audit.sh normalizes and diffs those, and is run against
+# logs/M0-effective-config.txt (M0's own capture) — see logs/M1-config-verify.txt for the
+# last run of that diff (2026-10-31: three lines, the three below, and `lb config` on stderr
+# clean).
+#
+# Variables with no `lb config` option cannot be written here. LB_UNION_FILESYSTEM
+# (overlay) and the BIOS/EFI bootloader pair (syslinux + grub-efi) are the known
+# ones; the dump diff is what proves they did not move.
+#
+# DEVIATIONS FROM LIVE-BUILD'S OWN DEFAULTS — three, and scripts/config-audit.sh is what
+# proves there are no others:
+#   --apt-recommends false  is the first behaviour change. §5: "an inventory copied from
+#     a metapackage is precisely the 'default install with a new name' this section
+#     forbids" — following Recommends is the same mistake one step later. Measured on
+#     2026-10-30 with the §5 selection: 735 packages without recommends, 1054 with,
+#     319 added — including desktop-base, gnome-icon-theme and tango-icon-theme, all
+#     three of which contradict §7's identity work (§12 item 2), plus avahi-daemon and
+#     modemmanager, which §6.5 either wants off or never mentions. See
+#     logs/M1-recommends-delta.txt. Consequence: any Recommends the session actually
+#     needs must be named in §5 instead — the additions and gaps are recorded there.
+#   --firmware-chroot false  is the second, and it is the same argument aimed at live-build
+#     itself. With the default (true), chroot_firmware downloads the archive's Contents files,
+#     takes every package that ships a path under lib/firmware, and hands those names to apt as
+#     explicit installs (/usr/share/live/build/functions/firmwarelists.sh — its own comment says
+#     "Assumption: firmware packages install files into /lib/firmware"). Against trixie main that
+#     rule named six packages, five of them wanted and one (indi-dsi, a Meade DSLR camera driver)
+#     present only because of usr/lib/firmware/meade-deepskyimager.hex. logs/M1-firmware-contents-repro.txt
+#     reproduces the enumeration from the Contents files the build cached;
+#     logs/M1-firmware-nonfree-scale.txt measures what the same rule does to the other areas:
+#     non-free-firmware 34 packages over 4792 paths, contrib 2 more. So the rule is not a set we
+#     can review once and trust — it is the image's package list being decided by a file on the
+#     mirror, which changes on a point release without changing anything committed. §11 forbids
+#     exactly that. With the stage off, the five names that belong in the image are written in
+#     manifests/base.pkgs with a reason each (§5's hardware-enablement entries), and the firmware
+#     area decision in §12 item 11 can be made without 34 packages arriving as a side effect of it.
+#     Build cost, also measured: the stage was running 00:05:01..00:05:45 in the 2026-10-31 build
+#     and left 38,208,826 + 12,698,511 bytes of Contents under cache/contents.chroot.
+#     --firmware-binary is left at its default true: measured, it is read only by
+#     installer_debian-installer (/usr/lib/live/build/installer_debian-installer:497), and
+#     --debian-installer none means that stage does not run.
+#   --chroot-squashfs-compression-type xz  pins a value live-build currently hardcodes
+#     when the variable is empty (binary_rootfs: "Set squashfs compression type or
+#     default to xz"). No behaviour change — M0's filesystem.squashfs reports
+#     "Compression xz" in `unsquashfs -s` — but it means an upstream change of that
+#     hardcoded default can no longer alter the artifact silently.
+# Everything else below restates a live-build default; scripts/config-audit.sh proves
+# that, and any new line in its diff is either a deviation we chose or a default that
+# moved without being asked.
+#
+# Things M1 deliberately does NOT change, and where they are tracked:
+#   --compression (LB_COMPRESSION) is irrelevant for iso-hybrid: live-build only
+#     reads it in binary_tar / binary_netboot / source_tar / binary_zsync
+#     (/usr/lib/live/build, checked 2026-10-30). The squashfs is built by
+#     binary_rootfs, which uses LB_CHROOT_SQUASHFS_COMPRESSION_TYPE and hardcodes
+#     xz when it is empty. M0's filesystem.squashfs is therefore already xz —
+#     `unsquashfs -s` reports "Compression xz", filesystem size 295856912 bytes.
+#     §9's earlier note about an "uncompressed stock default" was wrong and is corrected.
+#   --iso-application / --iso-publisher / --iso-volume and the boot menu strings
+#     still say "Debian Live" (§7 branding is M2; §9 records the mislabel).
+#   --archive-areas main is live-build's own default (logs/M0-effective-config.txt:
+#     LB_ARCHIVE_AREAS="main") and it reaches only the DFSG-free firmware. CORRECTION,
+#     measured 2026-10-31: an earlier version of this file claimed M0 installed "exactly
+#     three" firmware packages. That was a name-prefix count (`grep firmware-`), not a
+#     measurement. Both M0 and the 2026-10-31 M1 build installed all six that the Contents
+#     rule yields, plus linux-image-amd64 — logs/M1-firmware-m0-correction.txt, counted on
+#     dpkg's own "Setting up" lines in each build log. This laptop's Intel Dual Band
+#     Wireless-AC 8260 needs firmware-iwlwifi 20250410-2, which is Section
+#     non-free-firmware/kernel and absent from the trixie main index — so that blob is not
+#     in the image. Measured in logs/M1-firmware-areas.txt; §12 item 11. With
+#     --firmware-chroot false, opening that area adds only the names written in
+#     manifests/base.pkgs, not the 34 the rule would pick.
+#   --bootappend-live keeps stock "quiet splash" until §12 item 2 establishes which
+#     renderer owns the decrypt prompt.
+#   --debian-installer none: the installer is Calamares run from the live session (§4.4).
+
+lb config noauto \
+	--mode debian \
+	--system live \
+	--initsystem systemd \
+	--ignore-system-defaults \
+	\
+	--architectures amd64 \
+	--distribution trixie \
+	--archive-areas main \
+	--security true \
+	--updates true \
+	--backports false \
+	--proposed-updates false \
+	--keyring-packages debian-archive-keyring \
+	\
+	--binary-images iso-hybrid \
+	--binary-filesystem fat32 \
+	--checksums sha256 \
+	--zsync false \
+	--net-tarball true \
+	--memtest none \
+	\
+	--chroot-filesystem squashfs \
+	--chroot-squashfs-compression-type xz \
+	--initramfs live-boot \
+	--initramfs-compression gzip \
+	\
+	--apt apt \
+	--apt-secure true \
+	--apt-recommends false \
+	--apt-indices true \
+	--apt-source-archives true \
+	\
+	--debconf-frontend noninteractive \
+	--debconf-priority critical \
+	\
+	--debian-installer none \
+	--bootappend-live "boot=live components quiet splash" \
+	\
+	--linux-flavours amd64 \
+	--linux-packages linux-image \
+	--firmware-chroot false \
+	\
+	--uefi-secure-boot auto \
+	--source false

@@ -1,0 +1,84 @@
+pnmtopng: Unexpected EOF reading row of PPM image.
+pnmtopng: Unexpected EOF reading row of PPM image.
+pnmtopng: Unexpected EOF reading row of PPM image.
+pnmtopng: Unexpected EOF reading row of PPM image.
+pnmtopng: Unexpected EOF reading row of PPM image.
+pnmtopng: Unexpected EOF reading row of PPM image.
+pnmtopng: Unexpected EOF reading row of PPM image.
+pnmtopng: Unexpected EOF reading row of PPM image.
+pnmtopng: Unexpected EOF reading row of PPM image.
+pnmtopng: Unexpected EOF reading row of PPM image.
+pnmtopng: Unexpected EOF reading row of PPM image.
+run dir: /root/phantomos-tests/M1-boot
+M1-boot.artifacts-sha256.txt
+M1-boot-boot-145.png
+M1-boot-boot-145.ppm
+M1-boot-boot-205.png
+M1-boot-boot-205.ppm
+M1-boot-boot-265.png
+M1-boot-boot-265.ppm
+M1-boot-boot-300.png
+M1-boot-boot-300.ppm
+M1-boot-boot-85.png
+M1-boot-boot-85.ppm
+M1-boot-cmd-10.png
+M1-boot-cmd-10.ppm
+M1-boot-cmd-11.png
+M1-boot-cmd-11.ppm
+M1-boot-cmd-12.png
+M1-boot-cmd-12.ppm
+M1-boot-cmd-13.png
+M1-boot-cmd-13.ppm
+M1-boot-cmd-14.png
+M1-boot-cmd-14.ppm
+M1-boot-cmd-15.png
+M1-boot-cmd-15.ppm
+M1-boot-cmd-16.png
+M1-boot-cmd-16.ppm
+M1-boot-cmd-17.png
+M1-boot-cmd-17.ppm
+M1-boot-cmd-18.png
+M1-boot-cmd-18.ppm
+M1-boot-cmd-19.png
+M1-boot-cmd-19.ppm
+M1-boot-cmd-1.png
+M1-boot-cmd-1.ppm
+M1-boot-cmd-20.png
+M1-boot-cmd-20.ppm
+M1-boot-cmd-21.png
+M1-boot-cmd-21.ppm
+M1-boot-cmd-22.ppm
+M1-boot-cmd-23.png
+M1-boot-cmd-23.ppm
+M1-boot-cmd-24.png
+M1-boot-cmd-24.ppm
+M1-boot-cmd-25.ppm
+M1-boot-cmd-26.png
+M1-boot-cmd-26.ppm
+M1-boot-cmd-27.png
+M1-boot-cmd-27.ppm
+M1-boot-cmd-28.png
+M1-boot-cmd-28.ppm
+M1-boot-cmd-2.png
+M1-boot-cmd-2.ppm
+M1-boot-cmd-3.png
+M1-boot-cmd-3.ppm
+M1-boot-cmd-4.png
+M1-boot-cmd-4.ppm
+M1-boot-cmd-5.png
+M1-boot-cmd-5.ppm
+M1-boot-cmd-6.png
+M1-boot-cmd-6.ppm
+M1-boot-cmd-7.png
+M1-boot-cmd-7.ppm
+M1-boot-cmd-8.png
+M1-boot-cmd-8.ppm
+M1-boot-cmd-9.png
+M1-boot-cmd-9.ppm
+M1-boot-end.png
+M1-boot-end.ppm
+M1-boot.log
+M1-boot-wake.png
+M1-boot-wake.ppm
+qemu.err
+typed.txt

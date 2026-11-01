@@ -1,0 +1,109 @@
+=== 0. where live-build sets SOURCE_DATE_EPOCH ===
+total 0
+drwxr-xr-x 3 root root 60 Oct 30 23:44 etc
+drwxr-xr-x 3 root root 60 Oct 30 23:44 usr
+drwxr-xr-x 3 root root 60 Oct 30 23:44 var
+
+=== 1. shipped database counts ===
+[=====================/                                        ] 2584/7500  34%[========================================================-     ] 6990/7500  93%[=============================================================-] 7500/7500 100%
+-rw-r--r-- 1 root root  42168 Oct 30 23:44 /tmp/m1sq/var/lib/apt/extended_states
+-rw-r--r-- 1 root root 791553 Oct 30 23:44 /tmp/m1sq/var/lib/dpkg/status
+stanzas in status: 838
+install ok installed (stripped): 838
+--- extended_states shape (first 8 lines, then field histogram) ---
+Package: fontconfig
+Architecture: amd64
+Auto-Installed: 1
+
+Package: libvulkan1
+Architecture: amd64
+Auto-Installed: 1
+
+    682 Architecture:
+    682 Auto-Installed:
+    682 Package:
+    682 Auto-Installed: 1
+auto-installed marked: 682
+manual selections: 156
+--- are any auto-marked names absent from the installed set? (should be 0) ---
+
+=== 2. reconcile the three lists ===
+shipped: 838   chroot.packages.live: 838   host chroot now: 839
+--- shipped-only (in image, not in chroot.packages.live) ---
+--- live-only (in chroot.packages.live, not in image) ---
+--- host-only vs shipped ---
+  gettext-base
+--- shipped-only vs host ---
+
+=== 3. name shapes from the shipped database ===
+838
+0
+535
+name+arch pairs: 838   stripped unique: 838
+--- any stripped name that carries two architectures ---
+--- our four metapackages as the image reports them ---
+  phantomos-base	0.1.0-1	all	
+  phantomos-config	0.1.0-1	all	
+  phantomos-desktop	0.1.0-1	all	
+  phantomos-release	0.1.0-1	all	
+
+=== 4. §8 read off the shipped object ===
+--- /etc/apt/sources.list ---
+deb http://deb.debian.org/debian/ trixie main
+deb-src http://deb.debian.org/debian/ trixie main
+deb http://security.debian.org/ trixie-security main
+deb-src http://security.debian.org/ trixie-security main
+deb http://deb.debian.org/debian/ trixie-updates main
+deb-src http://deb.debian.org/debian/ trixie-updates main
+--- /etc/apt/sources.list.d (listing, empty dir prints nothing) ---
+(end)
+--- /etc/apt/trusted.gpg.d ---
+debian-archive-bookworm-automatic.asc
+debian-archive-bookworm-security-automatic.asc
+debian-archive-bookworm-stable.asc
+debian-archive-bullseye-automatic.asc
+debian-archive-bullseye-security-automatic.asc
+debian-archive-bullseye-stable.asc
+debian-archive-trixie-automatic.asc
+debian-archive-trixie-security-automatic.asc
+debian-archive-trixie-stable.asc
+--- /usr/share/keyrings ---
+debian-archive-bookworm-automatic.gpg
+debian-archive-bookworm-automatic.pgp
+debian-archive-bookworm-security-automatic.gpg
+debian-archive-bookworm-security-automatic.pgp
+debian-archive-bookworm-stable.gpg
+debian-archive-bookworm-stable.pgp
+debian-archive-bullseye-automatic.gpg
+debian-archive-bullseye-automatic.pgp
+debian-archive-bullseye-security-automatic.gpg
+debian-archive-bullseye-security-automatic.pgp
+debian-archive-bullseye-stable.gpg
+debian-archive-bullseye-stable.pgp
+debian-archive-keyring.gpg
+debian-archive-keyring.pgp
+debian-archive-removed-keys.gpg
+debian-archive-removed-keys.pgp
+debian-archive-trixie-automatic.gpg
+debian-archive-trixie-automatic.pgp
+debian-archive-trixie-security-automatic.gpg
+debian-archive-trixie-security-automatic.pgp
+debian-archive-trixie-stable.gpg
+debian-archive-trixie-stable.pgp
+phantomos-archive.gpg
+--- squashfs listing: opt / pool debs / phantomos files ---
+0
+0
+squashfs-root/usr/share/doc/phantomos-config
+squashfs-root/usr/share/doc/phantomos-config/NOTES
+squashfs-root/usr/share/doc/phantomos-release
+squashfs-root/usr/share/doc/phantomos-release/NOTES
+squashfs-root/usr/share/keyrings/phantomos-archive.gpg
+squashfs-root/var/lib/dpkg/info/phantomos-base.list
+squashfs-root/var/lib/dpkg/info/phantomos-base.md5sums
+squashfs-root/var/lib/dpkg/info/phantomos-config.list
+squashfs-root/var/lib/dpkg/info/phantomos-config.md5sums
+squashfs-root/var/lib/dpkg/info/phantomos-desktop.list
+squashfs-root/var/lib/dpkg/info/phantomos-desktop.md5sums
+squashfs-root/var/lib/dpkg/info/phantomos-release.list
+squashfs-root/var/lib/dpkg/info/phantomos-release.md5sums

@@ -1,0 +1,33 @@
+Build-host throughput to Debian mirrors, measured 2026-10-30, while the M1 image
+build was running. It exists because the build was stopped at 21:21 after 41 minutes
+with only 133 of the bootstrap's .debs fetched, and §11 wants the numbers behind
+stopping a run rather than the impression that motivated it.
+
+=== the stall, as observed ===
+  build.log last line for 27 minutes: 'I: Retrieving systemd 257.13-1~deb13u1'
+  partial file: 687280 B -> 1435620 B -> 1498100 B -> 3093632 B never reached
+  over the last two samples that is ~700 B/s
+  wget pid 5664 alive 27:29, connection ESTAB to 151.101.66.132:80, Recv-Q 0
+
+=== is it WSL or is it the uplink? ===
+  same file, downloaded from Windows PowerShell on the same machine at the same time:
+    3093632 bytes in 51957 ms = 58 KiB/s
+  same file, from WSL: 52006 ms. The host and the guest get the same number, so this
+  is not a WSL networking artefact. eth0 mtu 1472, Windows NIC 100 Mbps/MTU 1500.
+  IPv6 has no route at all here (ip -6 route get -> Network is unreachable), so
+  deb.debian.org resolves AAAA-first and every connection is forced onto IPv4.
+
+=== per-mirror throughput, uncontended, one 3093632-byte file each ===
+  deb.debian.org           rc=0   http=200 bytes=3093632   313135 B/s  (10370 ms)
+  mirror.dkm.cz            rc=0   http=200 bytes=3093632   520152 B/s  (5980 ms)
+  mirror.netcologne.de     rc=0   http=200 bytes=3093632    38769 B/s  (79824 ms)
+  security.debian.org      rc=0   http=200 bytes=41759      41848 B/s  (1028 ms)
+
+=== consequence for the build ===
+  The desktop closure in logs/M1-recommends-delta.txt is 735 packages; at the rate
+  deb.debian.org was actually giving (tens of KB/s, with 40 s stalls) the chroot
+  stage is a multi-hour download with a real chance of dying mid-stage, and live-
+  build retries nothing by itself. mirror.dkm.cz is a Debian-published mirror, it
+  serves the same GPG-signed archive, and it measured an order of magnitude faster.
+  See §9.1 for how the mirror is chosen per run and why the shipped sources.list
+  stays on deb.debian.org.

@@ -1,0 +1,106 @@
+=== 0. which file is the old shape ===
+  using the file the failed build actually ran with: /root/phantomos-m1/live/config/archives/phantomos.list.chroot
+  first line of old shape: # PhantomOS's own metapackage pool, on the build host at this absolute path. live-build
+  line count of old shape: 22
+
+=== 1. the upstream extractor, verbatim, with line numbers ===
+55:		fi
+56:	fi
+57:}
+58:
+59:# Try to bind the first URI from a sources.list(5) file in one-line-style format
+60:#
+61:# $1 = directory of the chroot
+62:# $2 = file in sources.list(5) one-line-style format
+63:Chroot_try_bind_path_from_list ()
+64:{
+65:	local CHROOT
+66:	local URI
+67:	local FILE
+68:	CHROOT=${1}
+69:	FILE=${2}
+70:	URI=$(sed --regexp-extended -e 's/.*(file:\/\/[^ ]+).*/\1/' ${FILE} | head -1)
+71:	Chroot_try_bind_path ${CHROOT} ${URI}
+72:}
+73:
+74:Chroot_try_unbind_path_from_list ()
+75:{
+76:	local CHROOT
+77:	local URI
+78:	local FILE
+79:	CHROOT=${1}
+80:	FILE=${2}
+
+=== 2. the caller that feeds it, with line numbers ===
+58:		for FILE in config/archives/*.list config/archives/*.list.chroot
+59:		do
+60:			if [ -e "${FILE}" ]
+61:			then
+62:				sed -e "s|@DISTRIBUTION@|${LB_DISTRIBUTION_CHROOT}|g" \
+63:				    -e "s|@PARENT_DISTRIBUTION@|${LB_PARENT_DISTRIBUTION_CHROOT}|g" \
+64:				    -e "s|@ARCHIVE_AREAS@|${LB_ARCHIVE_AREAS}|g" \
+65:				    -e "s|@PARENT_ARCHIVE_AREAS@|${LB_PARENT_ARCHIVE_AREAS}|g" \
+66:				"${FILE}" > "chroot/etc/apt/sources.list.d/$(basename ${FILE} .chroot)"
+67:				Chroot_try_bind_path_from_list chroot ${FILE}
+68:
+69:				if [ "${_PASS}" != "source" ] && [ "${LB_APT_SOURCE_ARCHIVES}" = "false" ]
+70:				then
+71:					# Disable source archives
+72:					sed -i "s/^deb-src/#deb-src/g" "chroot/etc/apt/sources.list.d/$(basename ${FILE} .chroot)"
+73:				fi
+74:			fi
+75:		done
+
+=== 3. the same extractor applied to the two shapes of the file ===
+old shape (comment block first, deb line at the end):
+  whole-file matches: # PhantomOS's own metapackage pool, on the build host at this absolute path. live-build
+# bind-mounts it into the chroot at the same path (functions/chroot_bind_path.sh, called
+# from /usr/lib/live/build/chroot_archives:67) and unmounts it at the end of the chroot
+# stage, so the pool is never copied into the image and the entry below is removed from
+# the chroot's apt config at the same moment (chroot_archives:360-366). scripts/
+# build-packages.sh signs the pool and refuses to run if this line stops matching it.
+#
+# Flat repository — no dists/ tree and no Suite, because the pool is a directory of
+# metapackages, not a distribution. Three slashes after file: are load-bearing: the bind
+file://(localhost)?/,
+# local path and nothing is mounted.
+#
+# Verification comes from the matching phantomos.key.chroot, which live-build installs into
+# the chroot's /etc/apt/trusted.gpg.d. This line deliberately carries no [trusted=yes], so
+# an unsigned pool fails the build instead of shipping. See §9.1 for the signed / wrong-key
+# / unsigned measurements.
+#
+# Build-time only: nothing here is a PhantomOS apt channel on a running machine. §12 item 3
+# decides where a real one lives; until then a shipped image has no PhantomOS source at all,
+# which is what §8 requires rather than an HTTP or unsigned one.
+
+file:///var/tmp/phantomos-build/pool
+  what live-build sees (| head -1): # PhantomOS's own metapackage pool, on the build host at this absolute path. live-build
+new shape (deb line first), the committed file:
+  what live-build sees (| head -1): file:///var/tmp/phantomos-build/pool
+
+=== 4. Chroot_try_bind_path's own guard, run over both extractor outputs ===
+  "# PhantomOS's own metapackage pool, on the build host at this absolute path. live-build" -> guard fails; nothing is mounted
+  "file:///var/tmp/phantomos-build/pool" -> guard matches; live-build mkdir+mount --binds it
+
+=== 5. negative control: scripts/build-packages.sh refuses the old shape ===
+--- the real script, run against a tree whose archives file is comment-first ---
+E: live-build would bind nothing from /tmp/firstline/contract/live/config/archives/phantomos.list.chroot.
+   live-build's own extractor (chroot_bind_path.sh:63-72, `... | head -1`) read:
+       # PhantomOS's own metapackage pool, on the build host at this absolute path. live-build
+   and only binds paths matching ^file://(localhost)?/ — three slashes.
+   It reads the FIRST line of the file, so the deb line cannot sit below a comment.
+--- exit code: 1 (non-zero expected; it aborts before touching any pool) ---
+
+--- the same script against the committed file, check only (line 1 + extractor) ---
+  committed file passes the line-1 contract check
+
+=== 6. the build this cost (from the failed run's log) ===
+676:P: Begin unmounting filesystems...
+709:[2026-10-30 22:22:38] lb chroot_archives chroot install
+711:Ign:1 file:/var/tmp/phantomos-build/pool ./ InRelease
+712:Err:2 file:/var/tmp/phantomos-build/pool ./ Release
+713:  File not found - /var/tmp/phantomos-build/pool/./Release (2: No such file or directory)
+726:E: The repository 'file:/var/tmp/phantomos-build/pool ./ Release' does not have a Release file.
+727:E: An unexpected failure occurred, exiting...
+728:P: Begin unmounting filesystems...

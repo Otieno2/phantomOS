@@ -1,0 +1,223 @@
+=== A. binary_rootfs: which mksquashfs branch ran ===
+328:				if [ -e config/rootfs/excludes ]
+330:					cp -a config/rootfs/excludes chroot/excludes
+332:					MKSQUASHFS_OPTIONS="-wildcards -ef /excludes ${MKSQUASHFS_OPTIONS}"
+338:				rm -f chroot/excludes
+366:				if [ -e config/rootfs/excludes ]
+368:					MKSQUASHFS_OPTIONS="-wildcards -ef config/rootfs/excludes ${MKSQUASHFS_OPTIONS}"
+--- binary_rootfs 315..380 ---
+		then 
+			MKSQUASHFS_OPTIONS="-comp ${LB_CHROOT_SQUASHFS_COMPRESSION_TYPE} ${MKSQUASHFS_OPTIONS}"
+		else 
+			MKSQUASHFS_OPTIONS="-comp xz ${MKSQUASHFS_OPTIONS}"
+		fi
+
+		if [ -n "${LB_CHROOT_SQUASHFS_COMPRESSION_LEVEL}" ]
+		then
+			MKSQUASHFS_OPTIONS="-Xcompression-level ${LB_CHROOT_SQUASHFS_COMPRESSION_LEVEL} ${MKSQUASHFS_OPTIONS}"
+		fi
+
+		case "${LB_BUILD_WITH_CHROOT}" in
+			true)
+				if [ -e config/rootfs/excludes ]
+				then
+					cp -a config/rootfs/excludes chroot/excludes
+
+					MKSQUASHFS_OPTIONS="-wildcards -ef /excludes ${MKSQUASHFS_OPTIONS}"
+				fi
+
+				# Create image
+				Chroot chroot "nice -n 17 mksquashfs chroot filesystem.squashfs ${MKSQUASHFS_OPTIONS}"
+
+				rm -f chroot/excludes
+
+				# Move image
+				mv chroot/filesystem.squashfs binary/${INITFS}
+				rm -f chroot/squashfs.sort
+
+				# Removing depends
+				Remove_packages
+
+				if [ -e chroot/chroot.cache ]
+				then
+					Remove_lockfile
+					mv chroot/chroot chroot.tmp
+
+					lb chroot_prep remove all mode-archives-binary "${@}"
+
+					rm -rf chroot
+					mv chroot.tmp chroot
+
+					lb chroot_prep install all mode-archives-binary "${@}"
+
+					touch .lock
+				else
+					rm -rf chroot/chroot
+				fi
+				;;
+
+			false)
+				if [ -e config/rootfs/excludes ]
+				then
+					MKSQUASHFS_OPTIONS="-wildcards -ef config/rootfs/excludes ${MKSQUASHFS_OPTIONS}"
+				fi
+
+				nice -n 19 mksquashfs chroot binary/${INITFS}/filesystem.squashfs ${MKSQUASHFS_OPTIONS}
+				;;
+		esac
+
+		chmod 0644 binary/${INITFS}/filesystem.squashfs
+
+		# Saving cache
+		Save_package_cache binary
+		;;
+
+
+=== B. the build log around binary_rootfs ===
+Universal Time is now:  Fri Oct 30 21:51:18 UTC 2026.
+Run 'dpkg-reconfigure tzdata' if you wish to change it.
+
+Processing triggers for libc-bin (2.41-12+deb13u4) ...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+Calculating upgrade...
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+Reading package lists...
+Building dependency tree...
+Reading state information...
+[2026-10-31 00:51:27] lb binary_rootfs 
+P: Begin building root filesystem image...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+The following additional packages will be installed:
+  liblzo2-2
+The following NEW packages will be installed:
+  liblzo2-2 squashfs-tools
+0 upgraded, 2 newly installed, 0 to remove and 0 not upgraded.
+Need to get 249 kB of archives.
+After this operation, 683 kB of additional disk space will be used.
+Get:1 http://deb.debian.org/debian trixie/main amd64 liblzo2-2 amd64 2.10-3+b1 [55.1 kB]
+Get:2 http://deb.debian.org/debian trixie/main amd64 squashfs-tools amd64 1:4.6.1-1 [194 kB]
+Fetched 249 kB in 1s (187 kB/s)
+Selecting previously unselected package liblzo2-2:amd64.
+(Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 7822 files and directories currently installed.)
+Preparing to unpack .../liblzo2-2_2.10-3+b1_amd64.deb ...
+Unpacking liblzo2-2:amd64 (2.10-3+b1) ...
+Selecting previously unselected package squashfs-tools.
+Preparing to unpack .../squashfs-tools_1%3a4.6.1-1_amd64.deb ...
+Unpacking squashfs-tools (1:4.6.1-1) ...
+Setting up liblzo2-2:amd64 (2.10-3+b1) ...
+Setting up squashfs-tools (1:4.6.1-1) ...
+Processing triggers for libc-bin (2.41-12+deb13u4) ...
+P: Preparing squashfs image...
+P: This may take a while.
+Unrecognised xattr prefix system.posix_acl_access
+Unrecognised xattr prefix system.posix_acl_default
+Parallel mksquashfs: Using 4 processors
+Creating 4.0 filesystem on filesystem.squashfs, block size 131072.
+
+Exportable Squashfs 4.0 filesystem, xz compressed, data block size 131072
+	compressed data, compressed metadata, compressed fragments,
+	compressed xattrs, compressed ids
+	duplicates are removed
+Filesystem size 819204.21 Kbytes (800.00 Mbytes)
+	34.52% of uncompressed filesystem size (2373076.34 Kbytes)
+Inode table size 416808 bytes (407.04 Kbytes)
+	24.96% of uncompressed inode table size (1669756 bytes)
+Directory table size 406938 bytes (397.40 Kbytes)
+	35.80% of uncompressed directory table size (1136666 bytes)
+Number of duplicate files found 2511
+Number of inodes 47740
+Number of files 39108
+Number of fragments 3402
+Number of symbolic links 3605
+Number of device nodes 9
+Number of fifo nodes 0
+
+=== C. excludes file present? ===
+total 0
+(no chroot/excludes)
+--- its content, if any ---
+
+=== D. does the squashfs contain /opt at all, and what does it say about excludes ===
+squashfs entries: 47746
+entries under squashfs-root/opt: 0
+--- anything mentioning phantomos ---
+13
+squashfs-root/usr/share/doc/phantomos-config
+squashfs-root/usr/share/doc/phantomos-config/NOTES
+squashfs-root/usr/share/doc/phantomos-release
+squashfs-root/usr/share/doc/phantomos-release/NOTES
+squashfs-root/usr/share/keyrings/phantomos-archive.gpg
+squashfs-root/var/lib/dpkg/info/phantomos-base.list
+squashfs-root/var/lib/dpkg/info/phantomos-base.md5sums
+squashfs-root/var/lib/dpkg/info/phantomos-config.list
+squashfs-root/var/lib/dpkg/info/phantomos-config.md5sums
+squashfs-root/var/lib/dpkg/info/phantomos-desktop.list
+squashfs-root/var/lib/dpkg/info/phantomos-desktop.md5sums
+squashfs-root/var/lib/dpkg/info/phantomos-release.list
+squashfs-root/var/lib/dpkg/info/phantomos-release.md5sums
+--- etc/apt listing in the squashfs ---
+squashfs-root/etc/apt/apt.conf.d
+squashfs-root/etc/apt/apt.conf.d/00recommends
+squashfs-root/etc/apt/apt.conf.d/01autoremove
+squashfs-root/etc/apt/apt.conf.d/20auto-upgrades
+squashfs-root/etc/apt/apt.conf.d/20listchanges
+squashfs-root/etc/apt/apt.conf.d/50unattended-upgrades
+squashfs-root/etc/apt/apt.conf.d/70debconf
+squashfs-root/etc/apt/auth.conf.d
+squashfs-root/etc/apt/keyrings
+squashfs-root/etc/apt/listchanges.conf
+squashfs-root/etc/apt/listchanges.conf.d
+squashfs-root/etc/apt/preferences.d
+squashfs-root/etc/apt/sources.list
+squashfs-root/etc/apt/sources.list.d
+squashfs-root/etc/apt/trusted.gpg.d
+squashfs-root/etc/apt/trusted.gpg.d/debian-archive-bookworm-automatic.asc
+squashfs-root/etc/apt/trusted.gpg.d/debian-archive-bookworm-security-automatic.asc
+squashfs-root/etc/apt/trusted.gpg.d/debian-archive-bookworm-stable.asc
+squashfs-root/etc/apt/trusted.gpg.d/debian-archive-bullseye-automatic.asc
+squashfs-root/etc/apt/trusted.gpg.d/debian-archive-bullseye-security-automatic.asc
+--- is the chroot/opt bind source still on the host ---
+/root/phantomos-m1/live/chroot/opt/phantomos-build:
+pool
+
+/root/phantomos-m1/live/chroot/opt/phantomos-build/pool:
+
+=== E. extended_states, correct field name ===
+    683 Auto-Installed: 1
+--- same file inside the squashfs? (dpkg status/extended_states paths) ---
+squashfs-root/var/lib/apt/extended_states
+squashfs-root/var/lib/dpkg/status
+
+=== F. dpkg-deb -f over many files, with stderr ===
+Package: adduser
+exit=0
+--- one field, three files, all fields instead ---
+--- per-file loop over all 144 ---
+144
+adduser
+apt
+apt-utils
+
+=== G. reading the dpkg database without chrooting ===
+adduser|adduser|3.152
+adwaita-icon-theme|adwaita-icon-theme|48.1-1
+alsa-topology-conf|alsa-topology-conf|1.2.5.1-3
+apparmor|apparmor|4.1.0-1
+apt|apt|3.0.3
+exit=0
+839
+--- count of arch-qualified in binary:Package ---
+535
+--- what dpkg -l would show (first 8 lines) ---
+Desired=Unknown/Install/Remove/Purge/Hold
+| Status=Not/Inst/Conf-files/Unpacked/halF-conf/Half-inst/trig-aWait/Trig-pend
+|/ Err?=(none)/Reinst-required (Status,Err: uppercase=bad)
+||/ Name                                 Version                              Architecture Description
++++-====================================-====================================-============-================================================================================
+ii  adduser                              3.152                                all          add and remove users and groups
+ii  adwaita-icon-theme                   48.1-1                               all          default icon theme of GNOME
+ii  alsa-topology-conf                   1.2.5.1-3                            all          ALSA topology configuration files

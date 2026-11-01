@@ -1,0 +1,13 @@
+baseline: logs/M0-effective-config.txt (98 assignments)
+current : live/auto/config (98 assignments)
+
+=== differences (< baseline / M0, > committed auto/config) ===
+-LB_APT_RECOMMENDS="true"
++LB_APT_RECOMMENDS="false"
+-LB_CHROOT_SQUASHFS_COMPRESSION_TYPE=""
++LB_CHROOT_SQUASHFS_COMPRESSION_TYPE="xz"
+-LB_FIRMWARE_CHROOT="true"
++LB_FIRMWARE_CHROOT="false"
+
+=== lb config stderr (must be empty) ===
+(clean)

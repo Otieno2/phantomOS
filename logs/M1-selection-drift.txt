@@ -1,0 +1,73 @@
+=== 1. are the seven in extended_states at all, or absent? ===
+linux-image-amd64      states-entry=0  line=
+firmware-linux-free    states-entry=0  line=
+firmware-ath9k-htc     states-entry=0  line=
+firmware-carl9170      states-entry=0  line=
+wireless-regdb         states-entry=0  line=
+alsa-topology-conf     states-entry=0  line=
+indi-dsi               states-entry=0  line=
+--- and a control: a package apt pulled as a dependency ---
+Package: libasound2t64
+Architecture: amd64
+Auto-Installed: 1
+--- total entries in extended_states vs installed ---
+states entries: 682   installed: 838
+
+=== 2. which installed packages have NO extended_states entry (= not installed by apt) ===
+156
+--- the ones that are not in cache/packages.bootstrap either ---
+alsa-topology-conf
+firmware-ath9k-htc
+firmware-carl9170
+firmware-linux-free
+indi-dsi
+linux-image-amd64
+live-boot
+live-config
+live-config-systemd
+phantomos-base
+phantomos-desktop
+wireless-regdb
+
+=== 3. the apt command line live-build used for the install pass ===
+707:[2026-10-31 00:00:45] lb chroot_apt install
+4223:[2026-10-31 00:38:06] lb chroot_apt install
+4362:[2026-10-31 00:49:06] lb chroot_prep install dpkg tmpfs sysv-rc hosts resolv hostname apt mode-apt-install-binary mode-archives-chroot
+4377:[2026-10-31 00:49:10] lb chroot_apt install-binary
+4602:[2026-10-31 01:10:51] lb chroot_apt install
+--- live-build's chroot_install-packages: how it builds the list ---
+22:shift
+87:		apt|apt-get)
+88:			Chroot chroot "xargs ${_INSTALL_ONE_BY_ONE} --arg-file=/root/packages.chroot apt-get ${APT_OPTIONS} install"
+--- where linux-image and firmware get named ---
+/usr/lib/live/build/binary_linux-image:24:if [ "${LB_LINUX_PACKAGES}" = "none" ]
+--- the effective config values for those two ---
+LB_FIRMWARE_BINARY="true"
+LB_FIRMWARE_CHROOT="true"
+LB_LINUX_PACKAGES="linux-image"
+
+=== 4. what the log says at the stage boundary above the firmware unpacks ===
+[2026-10-31 00:05:51] lb chroot_includes_before_packages 
+[2026-10-31 00:05:51] lb chroot_package-lists install
+[2026-10-31 00:07:16] lb chroot_install-packages install
+  xserver-xorg-video-intel xserver-xorg-video-qxl
+The following NEW packages will be installed:
+  adwaita-icon-theme alsa-topology-conf apparmor apt-listchanges
+  at-spi2-common bamfdaemon binutils binutils-common binutils-x86-64-linux-gnu
+  bsdextrautils bubblewrap build-essential busybox bzip2 ca-certificates cpp
+  cpp-14 cpp-14-x86-64-linux-gnu cpp-x86-64-linux-gnu cryptsetup
+  cryptsetup-bin dbus dbus-bin dbus-daemon dbus-session-bus-common
+  dbus-system-bus-common dbus-user-session dconf-gsettings-backend
+  dconf-service desktop-file-utils dictionaries-common dirmngr
+  distro-info-data dmeventd dmsetup dpkg-dev dracut-install emacsen-common
+  exo-utils firefox-esr firmware-ath9k-htc firmware-carl9170
+  firmware-linux-free flatpak fontconfig fontconfig-config fonts-dejavu-core
+  fonts-dejavu-mono fonts-inter fonts-jetbrains-mono fonts-montserrat fuse3
+  g++ g++-14 g++-14-x86-64-linux-gnu g++-x86-64-linux-gnu gcc gcc-14
+  gcc-14-x86-64-linux-gnu gcc-x86-64-linux-gnu gdal-data gdal-plugins git
+  git-man gnupg gnupg-l10n gpg gpg-agent gpgconf gpgsm groff-base
+  gtk-update-icon-cache hicolor-icon-theme hunspell-en-us indi-dsi
+  initramfs-tools initramfs-tools-bin initramfs-tools-core
+  keyboard-configuration klibc-utils libabsl20240722 libaec0 libaio1t64
+  libaom3 libappstream5 libarchive13t64 libarmadillo14 libarpack2t64 libasan8
+  libasound2-data libasound2t64 libaspell15 libass9 libassuan9 libasyncns0

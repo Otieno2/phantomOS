@@ -1,0 +1,5 @@
+=== seed: a stray ISO from a run that died, plus a previous archive and a previous log ===
+  previous archive sha256 = 75c5b400734536d6f12a8e35288e5bcee017997b6182794b3bce63bd7ac3cf67
+
+=== run 1 ===
+/mnt/c/Users/INFINITY/OneDrive/Desktop/phantomOS/scripts/build-iso-artifact-test.sh: line 91: RC: unbound variable

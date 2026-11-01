@@ -1,0 +1,88 @@
+=== 1. tree signals (process table stubbed to one unrelated line) ===
+  idle tree: rc=0
+  PASS  a readable tree with live/ and no .lock is IDLE 0
+  lock tree: rc=1
+  PASS  a present live/.lock is BUSY 1 naming the lock
+  PASS  busy output lists the .build stage stamps
+  PASS  epoch- and colon-named stamps survive the listing
+  absent tree: rc=0
+  PASS  definitely-absent --work is IDLE 0 with a first-run note (defect A)
+  hidden lock: rc=2
+  PASS  a .lock under an unsearchable live/ is never IDLE (defect B)
+  WORK 444: rc=2
+  PASS  a WORK that can be read but not searched is never IDLE (defect C)
+  unreadable WORK: rc=2
+  PASS  an unreadable WORK is CANNOT TELL 2
+  invisible WORK: rc=2
+  PASS  a WORK the caller cannot stat (parent blocks) is CANNOT TELL 2
+  absent under invisible parent: rc=2
+  PASS  absence the caller cannot verify is NOT claimed as idle (defect A kept honest)
+=== 2. quiet and verbose never disagree ===
+  idle: verbose=0 (IDLE — no build, no boot test, no live-build lock), quiet=0
+  PASS  idle: verbose exit is idle and the label says the same
+  PASS  idle: --quiet exit equals the verbose exit
+  locktree: verbose=1 (BUSY — /tmp/phantomos-bs-test.0/locktree), quiet=1
+  PASS  locktree: verbose exit is busy and the label says the same
+  PASS  locktree: --quiet exit equals the verbose exit
+  absent-does-not-exist: verbose=0 (IDLE — no build, no boot test, no live-build lock), quiet=0
+  PASS  absent-does-not-exist: verbose exit is idle and the label says the same
+  PASS  absent-does-not-exist: --quiet exit equals the verbose exit
+  nostat: verbose=2 (CANNOT TELL — /tmp/phantomos-bs-test.0/nostat), quiet=2
+  PASS  nostat: verbose exit is cannot-tell and the label says the same
+  PASS  nostat: --quiet exit equals the verbose exit
+  hide: verbose=2 (CANNOT TELL — /tmp/phantomos-bs-test.0/hide), quiet=2
+  PASS  hide: verbose exit is cannot-tell and the label says the same
+  PASS  hide: --quiet exit equals the verbose exit
+  ronly: verbose=2 (CANNOT TELL — /tmp/phantomos-bs-test.0/ronly), quiet=2
+  PASS  ronly: verbose exit is cannot-tell and the label says the same
+  PASS  ronly: --quiet exit equals the verbose exit
+=== 3. process-table signals (stub ps replays fixture lines) ===
+  wrapper: rc=1
+  PASS  a wrapper line is BUSY 1 naming pid and wrapper
+  stages: rc=1
+  PASS  stage helpers and mksquashfs are BUSY 1
+  qemu: rc=1
+  PASS  an unrelated qemu is BUSY 1 as its own reason (documented design, not a defect)
+  path-similarity: rc=1
+  PASS  busy process under a path containing build-status.sh is NOT silenced (defect D)
+  argv-grep: rc=1
+  PASS  helper with grep -E in its argv is NOT silenced (defect D)
+  own grep: rc=0
+  PASS  the probe command grep is not counted busy
+  own run: rc=0
+  PASS  an invocation of build-status.sh itself is not counted busy
+  ps exit 1: rc=2
+  PASS  a failing ps is an unreadable signal, not IDLE (defect E)
+  ps empty: rc=2
+  PASS  an empty process table is not evidence of idle (defect E)
+  lock quiet: rc=1
+  PASS  --quiet reports busy for a lock (exit 1)
+=== 4. --exclude-pid walks a real ancestor chain (fixtures are two live processes) ===
+  dead pid: rc=1
+  PASS  excluding a dead pid neither crashes nor hides the live ancestor
+  exclude child: rc=0
+  PASS  excluding a pid ignores its ancestors despite a space in comm (defect F)
+  PASS  excluding the wrapper itself is idle
+  bad pid: rc=2
+  PASS  a non-numeric --exclude-pid is a usage error (2), not a silent empty ignore set (defect G)
+=== 4b. a build-iso.sh-shaped guard must not refuse an idle host over its own fork (defect H) ===
+  guard said: GUARD-PROCEEDED
+  PASS  build-iso.sh's own subshell fork is ignored: the guard proceeds over a truly idle tree
+=== 5. argument handling ===
+  --work bare: rc=2
+  PASS  --work without a value exits 2, not a set -u crash exiting 1 (defect G)
+  --exclude-pid bare: rc=2
+  PASS  --exclude-pid without a value exits 2 (defect G)
+  PASS  an unknown argument exits 2
+=== 6. the real work tree (read-only, real ps, whatever state the build is in) ===
+  verbose says: BUSY — /root/phantomos-m1 (exit 1); quiet exit 1
+  live-iso wrapper: pid 73192 up 01:26:27: bash /root/phantomos-m1/.build-iso.running.sh /mnt/c/Users/INFINITY/OneDrive/Desktop/phantomOS
+  live-build stage: pid 73839 up 01:12:52: /bin/sh /usr/lib/live/build/build
+  live-build stage: pid 88259 up 41:01: /bin/sh /usr/lib/live/build/chroot
+  live-build stage: pid 94629 up 23:14: /bin/sh /usr/lib/live/build/chroot_install-packages install
+  qemu boot test: pid 108405 up 01:28: qemu-system-x86_64 -name guardtest-fresh -m 1024 -smp 2 -accel kvm -display none -monitor unix:/tmp/guardtest.108087/guardtest-fresh/monitor.sock,server,nowait -pidfile /tmp/guardtest.108087/guardtest-fresh/qemu.pid -daemonize -cdrom /tmp/guardtest.108087/dummy.iso
+  PASS  the real tree answers 0, 1 or 2 only
+  PASS  quiet and verbose agree on the real tree
+  PASS  a .lock visible to this identity is never answered IDLE
+
+RESULT: 43 passed, 0 failed

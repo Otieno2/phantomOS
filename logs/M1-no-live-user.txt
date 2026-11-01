@@ -1,0 +1,314 @@
+M1's ISO boots and cannot be logged into. No account exists, root is locked, and both
+login paths — the console autologin and the graphical one — attempt a user that the image
+never created. This was photographed on 2026-11-01 by harness/boot-test.sh against run M's
+artifact, and it is the reason the M1 boot test exists: scripts/m1-diff.sh had already
+printed "M1 EXIT CRITERION: MET (both directions empty…)" against this same squashfs, and
+the diff cannot see this, because the missing package was never in either list.
+
+The image tested: artifacts/2026-11-01T140727Z/live-image-amd64.hybrid.iso
+  sha256 f256cefc66d9ab31031501469080bbe154b16e7844453ac6e108221a4d69a2a5
+  its filesystem.squashfs sha256 5c28598459d38f95a6ae89380100749a81926c9f360b47739292d7f20ed2688e
+  837292032 B, xz, 47705 paths — re-measured out of the archived ISO by read-only loop mount at
+  2026-11-01T17:24Z, in logs/M1-runM-shipped-squashfs.txt.
+
+  A correction to this file as first written. The line above used to read "byte-identical to the one
+  m1-diff.sh measured; see logs/M1-diff-runM.txt". That was checked during the session and matched,
+  but its output went to a terminal and was never captured, and run N's cold-clean deleted
+  live/binary, so the comparison cannot be re-made for run M. logs/M1-runM-shipped-squashfs.txt
+  records the ISO side as a measurement and states plainly what stands in place of the tree side.
+
+
+§1  The observation
+-------------------
+harness/boot-test.sh --mode bios --run M1-boot --wait 300, commands from
+harness/commands/M1.txt. QEMU 10.0.13, `info kvm` -> "kvm support: enabled".
+
+Frame boot-300 (graphical VT, 300 s after qemu start): the lightdm GTK greeter, top bar
+"debian", an EMPTY username entry box, "Enter your password", Cancel / Log In. No user is
+offered. This is what lightdm shows when the account it was told to autologin does not
+exist.
+
+Frame cmd-2 (tty2, after KEY: ctrl-alt-f2 and the two-line login probe), verbatim:
+
+    Debian GNU/Limux 13 debian tty2
+    debian login: user (automatic login)
+
+    Authentication failure
+    _
+
+Read that first line as the getty banner; the second and third are the finding. "user
+(automatic login)" is live-config's systemd generator having done its job — it wrote
+--autologin user for this tty. "Authentication failure" is login(1) being handed a username
+that is not in /etc/passwd.
+
+And then nothing. Every frame from cmd-2 to end shows these same four lines. The 26
+evidence commands that follow the login probe produced no echo, no "Login incorrect", no
+prompt: the console is not reading input at all, which is consistent with agetty having
+exited on the failed autologin and its unit sitting in a restart hold. The md5 column in
+M1-boot.log alternates between a few values across those 27 frames; the frames are
+visually identical and the variation is the cursor's blink phase. So the command frames are
+not weak evidence of a dead console, they are 27 repetitions of it.
+
+Evidence handling, stated because it affects what is in logs/evidence/: during the run,
+pnmtopng wrote an empty PNG for twelve frames and the harness logged cmd-22 and cmd-25 as
+MISSING. Both are one root cause — QEMU writes the screendump file asynchronously, so the
+harness converted PPMs that were still being written; see the shot() comment in
+harness/boot-test.sh. The PPMs themselves completed and were never touched, so all 35
+frames were reconverted from them after the run and logs/evidence/M1-boot-artifacts-sha256.txt
+was recomputed; M1-boot.log carries a labelled post-run note saying so, and the run-time
+PPM md5s above are the values the run itself recorded. cmd-22 and cmd-25 are therefore
+post-run reconversions of frames the run reported MISSING: their content is real, their
+run-time status was not captured.
+
+The login probe (user / live) was typed deliberately, before the evidence commands, to
+distinguish "the autologin mechanism is broken" from "there is no account". The answer is
+the second: even the credentials the shipped scripts print do not work, because there is
+nobody to check them against.
+
+
+§2  The mechanism, read out of the image rather than recalled
+-------------------------------------------------------------
+All paths below are inside run M's filesystem.squashfs, extracted with unsquashfs on
+2026-11-01. Nothing here is quoted from SPEC §9's M0-era description, which predates the
+deviation that caused this.
+
+  /etc/passwd has 23 lines. No uid >= 1000. The last accounts are system ones.
+  /etc/shadow: root's password field is "*", i.e. locked.
+
+  /usr/lib/live/config/0030-user-setup — creates the live account at boot:
+      Init () {
+          if ! pkg_is_installed "user-setup" || component_was_executed "user-setup"
+          then exit 0; fi
+      and Config() feeds debconf _PASSWORD="8Ab05sVQ4LLps" under the comment
+      "Default password is: live", and sets root's password to "*" deliberately.
+      pkg_is_installed() (/usr/lib/live/config.sh:5-15) is dpkg-query on the image's own
+      status file. So this component runs only if the user-setup package is installed.
+
+  /usr/lib/live/config/0040-sudo — gate passes (sudo IS installed), so it appends
+      "user ALL=(ALL) NOPASSWD: ALL" to /etc/sudoers.d/live and then runs
+      "usermod -a -G sudo user", which fails because user does not exist. The script has
+      `#set -e` commented out, so it continues and writes a sudoers entry for nobody.
+
+  /usr/lib/systemd/system-generators/live-config-getty-generator — present, and it ran:
+      requires "boot=live" in /proc/cmdline (live/auto/config:130 supplies it), then writes
+      getty@tty1..6.service.d/live-config_autologin.conf with
+      ExecStart=-/sbin/agetty --autologin user … . It stands down if that path already
+      exists, or on noautologin/nottyautologin. This is why the console said "(automatic
+      login)".
+
+  /usr/lib/live/config/0100-lightdm — gate passes (lightdm IS installed), so it seds
+      /etc/lightdm/lightdm.conf to autologin-user=user. Same nonexistent user; the greeter
+      in frame boot-300 is lightdm falling back after that fails.
+
+  /usr/lib/live/init-config.sh:5 — LIVE_USERNAME="user". The username is "user", not
+  "live"; only the password is "live". M1.txt's probe types both.
+
+
+§3  Why M0 worked and M1 does not
+---------------------------------
+The delta, measured by counting stanzas in each image's /var/lib/dpkg/status:
+
+      package            M0   M1
+      user-setup          1    0
+      locales             1    0
+      live-tools          1    0
+      live-config-doc     1    0
+      polkitd             0    0
+
+manifests/live.pkgs holds four lines — live-boot, live-config, live-config-systemd,
+systemd-sysv — and its header says they were "copied verbatim from the M0 stock tree's own
+config/package-lists/live.list.chroot" and that "M0's build and boot runs (A/H) prove the
+set works". Both statements are true and together they are the trap: what M0's runs proved
+was that set PLUS live-config's Recommends, because M0 was built with Recommends on.
+live-config Recommends (its own stanza in the M1 image):
+
+    iproute2 | iproute, keyboard-configuration, live-config-doc, live-tools,
+    locales | locales-all, sudo, user-setup
+
+Of those seven, the M1 image has four (iproute2, keyboard-configuration, sudo — all named
+elsewhere in the inventory — plus the | alternatives). It lacks live-config-doc,
+live-tools, locales and user-setup. live/auto/config:122 passes --apt-recommends false,
+which is the first of the three documented deviations, justified by
+logs/M1-recommends-delta.txt (735 packages without Recommends vs 1054 with).
+
+So the four-line manifest was never the live system. It was the explicit half of it. The
+implicit half arrived by Recommends in M0, and the deviation that removed 319 packages
+removed it too — silently, because a Recommends that vanishes leaves no error, and
+0030-user-setup's `exit 0` is indistinguishable from success in a build log.
+
+
+§4  Every live-config component, swept against the image
+--------------------------------------------------------
+Each /usr/lib/live/config/* script was extracted and its pkg_is_installed gate checked
+against the M1 status file. 35 components; 22 have a gate package that is not installed and
+therefore exit 0 having done nothing. Most are correctly absent (gdm3, sddm, kdm, lxdm,
+nodm, slim, apport, gnome-*, kde-services, xscreensaver, anacron, ssl-cert,
+openssh-server, broadcom-sta-common, live-debconfig — none of those desktops or services
+ship). Four are not:
+
+  0030-user-setup   gate user-setup            ABSENT  -> no account. This file's subject.
+  0050-locales      gate locales|locales-all   ABSENT  -> /etc/default/locale is never
+                        written and locale-gen never runs. The image ships no
+                        /etc/default/locale at all and /usr/lib/locale holds only C.utf8
+                        (from libc-bin), so the session has no LANG. Degraded, not fatal.
+  1080-policykit    gate polkitd|policykit-1   ABSENT  -> the "sudo-group users need no
+                        prompt" polkit rule is never written. See §5: there is no polkit
+                        daemon at all, so the rule would have nothing to load into.
+  0040-sudo         gate sudo                  present -> runs, and fails halfway (§2).
+
+The remaining gates that pass (debconf, tzdata, lightdm, xinit, keyboard-configuration,
+util-linux, login, xserver-xorg, xfce4-panel, sudo) do their work.
+
+
+§5  A claim in SPEC that the images contradict: polkitd
+-------------------------------------------------------
+SPEC §9.1 (line 858) and §12 item 12 (line 1439) both say, of the dropped Recommends, that
+"`upower`, `xfdesktop4`, `xfwm4` and `polkitd` were checked in the same pass and arrive
+through `Depends:` anyway." Three of those four are true of the M1 image (upower,
+xfdesktop4, xfwm4 each have one stanza). polkitd has zero, in M1 and in M0.
+
+The claim's origin is logs/M1-recommends-edges.txt:172: "polkitd: not in the 319 -> arrives
+by Depends". That was a one-hop inference over a two-hop question. The same file's own
+lines 62, 162 and 163 show polkitd is a *Recommends* of udisks2, network-manager and
+flatpak — and all three of those are themselves inside the 319 that were dropped. With
+every carrier gone, polkitd had nothing left to arrive through. The check asked "is
+polkitd in the dropped set?" (no) and stopped, instead of asking "is anything that would
+pull it still installed?" (nothing).
+
+Measured in the M1 image: no polkitd binary, no pkexec, no polkit-agent-helper-1 anywhere
+in the 47705-path squashfs listing; the only polkit-1 path is a .policy data file owned by
+dpkg. No installed package Provides polkitd. So there is no authorization daemon in the
+image, in either build.
+
+
+§6  The authentication agent the image got instead
+--------------------------------------------------
+The image does contain an agent: ukui-polkit 1.2.2.2-1.1+b1, "UKUI authentication agent
+for PolicyKit-1", which Provides: polkit-1-auth-agent. It is there because
+network-manager-applet and nm-connection-editor both Depend on
+"policykit-1-gnome | polkit-1-auth-agent", and apt resolved that alternative to the only
+provider it took — the agent of the UKUI desktop, in an Xfce image. Its Depends drag in
+libopencv-core410, libopencv-imgproc410, libopencv-imgcodecs410 and libpolkit-qt5-1-1:
+10 277 KiB installed, OpenCV image-processing libraries among them, for a GTK session's
+auth prompt. ukui-polkit is named nowhere in this repository — not in manifests/, not in
+SPEC §5 — and nothing installed Depends on it directly; it is an artifact of a virtual
+package resolution. It autostarts from /etc/xdg/autostart/
+polkit-ukui-authentication-agent-1.desktop into a system with no daemon to register with.
+
+Why apt chose ukui-polkit over policykit-1-gnome is NOT established: LB_CACHE_INDICES is
+false, so run M kept no Packages index, and the question of whether policykit-1-gnome is
+even in trixie main has not been asked of the archive. Recorded as open, not guessed.
+
+
+§7  What this file does not claim
+---------------------------------
+- It does not claim the §10 exit criterion was wrong. The criterion is a package-list diff
+  and it was executed correctly against a shipped image; both directions were empty. The
+  defect is that the criterion's two lists were both derived from a build that already had
+  the deviation, so a package neither list ever named cannot make the diff non-empty. A
+  diff is only as good as the lists it compares.
+- It does not claim adding user-setup will produce a working session. That needs a run
+  (§11). It is the fix proposed in §8, and the boot test that follows it is the check.
+- It does not claim the locales or polkitd gaps break the desktop in any specific way.
+  §4 states what each component fails to do; what a user would notice is unobserved.
+- The "GNU/Limux" in the §1 quote is what the frame shows; it is a VGA-font rendering of
+  the getty banner and no claim is drawn from it.
+
+
+§8  The fix, and what it costs
+------------------------------
+manifests/live.pkgs gains user-setup, locales and live-tools, each with the reason it is
+load-bearing written in the file, because that file is the one place the live system's
+packages are named and its header already admits it carries no per-package justification.
+user-setup is the account; locales is the LANG; live-tools is what live-config's own
+Recommends considered part of the live system and what M0 shipped. live-config-doc is
+documentation and is not added.
+
+That is a change to a build input, so §11 applies: the gate and the boot test are re-run
+after it, and the 834-name installed set grows by the closure of the three.
+
+The closure was read out of the build host's trixie indices on 2026-11-01T17:58Z rather than
+guessed, because ukui-polkit is the precedent for what an unexamined resolution does (§6:
+10 277 KiB of OpenCV and Qt5 into an Xfce image, from a virtual package nobody named). The
+three are small and boring:
+
+    user-setup   1.107          Depends: debconf, debconf-2.0 (cdebconf|debconf), passwd, adduser
+    locales      2.41-12+deb13u4 Depends: libc-bin, libc-l10n, debconf, debconf-2.0
+    live-tools   1:20240525     Depends: initramfs-tools
+
+None of the three carries a Recommends line at all, so there is no second-order edge to
+worry about even though the build drops Recommends anyway. Of everything they depend on,
+five are already in run M's 834 — initramfs-tools, passwd, adduser, debconf, libc-bin — and
+cdebconf is an alternative that debconf already satisfies. So the predicted delta is
+exactly four new stanzas:
+
+    user-setup, locales, live-tools, libc-l10n          834 -> 838
+
+**That is a prediction, labelled as one, and it is falsifiable.** Its basis is the host's
+index plus run M's installed set, not run N's artifact; apt is free to resolve differently,
+which is the whole lesson of §6. If run N's m1-diff comes back with a different delta, this
+paragraph is wrong and the difference is the interesting part.
+
+One trap for whoever reads run N's numbers: **838 is also the installed count of the
+2026-10-30T204433Z build whose diff FAILED** — 42 MISSING, 7 EXTRA, `M1 EXIT CRITERION: NOT
+MET` (logs/M1-diff.txt). The two 838s are unrelated sets from unrelated trees; matching
+counts there would be a coincidence, not a regression back to that build.
+
+A rebuild measured 1 h 44 m 39 s on run M; that is the price of the check, and it is why this
+file exists rather than a quiet manifest edit. Run N is paying it now, from a cold tree, and
+its bootstrap pass is already running slower than run M's did.
+
+§9  One consequence of naming live-tools that nobody had looked at
+-----------------------------------------------------------------
+The closure check above downloaded live-tools 1:20240525 (26 764 B, Installed-Size 109) and
+listed it, because the manifest comment for it claimed a specific file
+(`live-update-initramfs`) that the index's Description does not mention. The claim survives —
+/usr/bin/live-update-initramfs is in it — but the listing turned up something the claim did
+not anticipate:
+
+    ./usr/sbin/update-initramfs
+
+which initramfs-tools 0.148.4 also ships (7530 B at the same path). live-tools' `preinst`
+resolves that with two diversions:
+
+    dpkg-divert --package live-tools --add --rename \
+      --divert /usr/sbin/update-initramfs.orig.initramfs-tools /usr/sbin/update-initramfs
+    dpkg-divert --package live-tools --add --rename \
+      --divert /usr/share/man/man8/update-initramfs.orig.initramfs-tools.8.gz \
+      /usr/share/man/man8/update-initramfs.8.gz
+
+(`postrm` removes both.) So run N's image will have initramfs-tools' real program renamed to
+`.orig.initramfs-tools` and live-tools' 95-line wrapper in its place, and `dpkg -S
+/usr/sbin/update-initramfs` will answer `live-tools` where run M's answers
+`initramfs-tools`. That is an artifact-visible difference the "four new stanzas" count above
+does not express, and it is the reason the squashfs path count will move by more than four.
+
+Read in full, the wrapper is benign, and the two branches that matter are these:
+
+  * **non-live system** — the test is `if [ ! -e /.live-build ] && grep -qs "boot=live"
+    /proc/cmdline`, and the else branch execs
+    `/usr/sbin/update-initramfs.orig.initramfs-tools "${@}"` and exits with its status. A
+    plain pass-through. So an installed PhantomOS (M3) is unaffected even if live-tools were
+    carried into it, because the branch keys off the kernel command line, not off which
+    package owns the file.
+  * **live system on read-only media** — no writable `/run/live/medium`, so it prints
+    `I: update-initramfs is disabled (live system is running on read-only media)` and exits
+    0. Which is the right answer for a booted ISO: there is nothing to update. The writable
+    branch, which does run the real program and then copies vmlinuz/initrd onto the medium,
+    is the live-USB-update path and cannot fire from an ISO.
+
+  It exits 1 only if `.orig.initramfs-tools` is missing, and dpkg's `--rename` diversion
+  guarantees that path regardless of which of the two packages is unpacked first.
+
+What this does not claim: it is a reading of the wrapper's source and of the two maintainer
+scripts, not a run. Nothing has executed live-tools' `update-initramfs` inside a PhantomOS
+image — run M's does not contain it. The pass-through branch is what makes it safe to name
+the package on the strength of a reading; if M3 ever finds `update-initramfs` behaving
+strangely on an installed system, this section is where to start, and §12 item 15 carries the
+question.
+
+The polkitd and ukui-polkit findings are §12 item 12's, not this file's: they are desktop
+behaviour questions the spec already defers to the M2 session, and the agent choice is a
+decision. What is corrected here and now is the false sentence about polkitd in §9.1 and
+§12 item 12, because §11 does not let a claim that two built images contradict stay in the
+spec while its fix waits for a milestone.

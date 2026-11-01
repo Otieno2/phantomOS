@@ -1,0 +1,437 @@
+apt-cacher-ng as an outage shield for the phantomOS build — measured, then not adopted
+=======================================================================================
+
+Run 2026-11-01 on the WSL2 build host (Debian trixie, apt-cacher-ng 3.7.5-1). Everything here
+is measurement; the decision in §7 follows from it and from numbers already in the tree.
+
+The question
+------------
+Runs K and L both died the same way: the WSL resolver stopped answering mid-build, and
+live-build's `set -e` turned "Temporary failure resolving 'deb.debian.org'" into
+"E: An unexpected failure occurred, exiting..." after 40-51 minutes of work. Run L died in
+`binary_rootfs`, fetching two .debs (squashfs-tools, liblzo2-2) that live-build's own package
+cache had not covered. Run K died earlier, on three `InRelease` fetches during a
+`chroot_archives` run.
+
+A caching proxy is the obvious answer, and the obvious answer is not automatically right. The
+one property that decides it: **does the proxy serve a cached object when upstream is
+completely unreachable?** If it revalidates and fails, the proxy only relocates the DNS
+dependency and is worth nothing here.
+
+
+§1  Method
+----------
+`unshare -n` gives a network namespace with no interface but loopback: no route out, no
+resolver reachable. From a daemon inside it, that is a total upstream outage — a strict
+superset of the resolver-only failure that killed runs K and L, so a pass here is a stronger
+result than the failure mode actually requires.
+
+  1. Warm the real proxy (127.0.0.1:3142) with four objects: two .debs and two index files.
+  2. Snapshot /var/cache/apt-cacher-ng into a scratch dir.
+  3. Start a second daemon inside the netns on port 3143, reading a copy of the shipped
+     /etc/apt-cacher-ng plus an override file (CacheDir/LogDir/PidFile/Port). Reusing the
+     shipped config means this tests the daemon we would actually run, not a toy one.
+  4. Probe all four warmed objects plus a fifth that was deliberately never warmed.
+
+The fifth object is the negative control. If it succeeds, the isolation is not real and every
+other number on the page is worthless. It returned the same 514-byte 503 as the two index
+misses, and a direct upstream fetch from inside the namespace exited 6 ("could not resolve
+host"). The isolation was real.
+
+Nothing in this test can reach run M, which was building in the host namespace at the time,
+and nothing on the host was reconfigured: §6 records the post-state.
+
+
+§2  Result — .debs are served from cache with upstream gone; index files are not
+--------------------------------------------------------------------------------
+All five probes, upstream unreachable:
+
+  KIND  object                http   bytes     sha256
+  POS   squashfs-tools.deb    200    193888    0e185122f5858132bbc709e26228ba28cf7f0c41f6ed26e3f55f518f2a53b59d
+  POS   liblzo2-2.deb         200     55100    f3032201fe2928a87e13f05ce256ff3ac2a7860c7e594dc51ae6d7348a4466ce
+  POS   InRelease             503       514    dc49eeea3a4893d1836039384ef72ff37004feda58725669db6fb4e89d35d153
+  POS   Packages.xz           503       514    dc49eeea3a4893d1836039384ef72ff37004feda58725669db6fb4e89d35d153
+  NEG   mtools.deb (control)  503       514    dc49eeea3a4893d1836039384ef72ff37004feda58725669db6fb4e89d35d153
+
+Byte-for-byte comparison against the copies fetched while upstream was still reachable:
+
+  squashfs-tools.deb  IDENTICAL  0e185122f5858132bbc709e26228ba28cf7f0c41f6ed26e3f55f518f2a53b59d
+  liblzo2-2.deb       IDENTICAL  f3032201fe2928a87e13f05ce256ff3ac2a7860c7e594dc51ae6d7348a4466ce
+  InRelease           503, nothing served
+  Packages.xz         503, nothing served
+
+The two 503 bodies are identical to the negative control's, i.e. the same generic
+"503 Resource temporarily unavailable" page. A cached `InRelease` (140421 bytes) and a cached
+`Packages.xz` (9678380 bytes) were both sitting in the snapshot at the time and were not
+served.
+
+This split is not a bug, it is the documented design. From the shipped
+/etc/apt-cacher-ng/acng.conf:230-232:
+
+  «PFilePattern» for static data that doesn't change silently on the server.
+  «VFilePattern» for volatile data that may change like every hour. Files
+   that match both PFilePattern and VfilePattern will be treated as volatile.
+
+pool/*.deb is static: served from cache, no upstream contact, so an outage is invisible.
+dists/* is volatile: revalidated against upstream, so an outage is fatal even with a fresh
+copy on disk.
+
+
+§3  Is the volatile-file behaviour configurable away?
+-----------------------------------------------------
+Checked rather than assumed. The shipped config's only offline knob points the wrong way
+(acng.conf:120-123):
+
+  # Forbid outgoing connections and work without an internet connection or
+  # respond with 503 error where it's not possible.
+  #
+  # Offlinemode: 0
+
+That is a way to *force* the offline behaviour, not to relax revalidation. Setting it would
+make index fetches fail always, not succeed from cache.
+
+The remaining lever is `PfilePatternEx` / `SPfilePatternEx` (acng.conf:252-255), which could
+reclassify `Packages.xz` and `InRelease` as static. That was not tried, and should not be:
+acng would then stop ever revalidating them, so a build would silently work from package lists
+frozen at whatever moment they were first cached. A stale index plus a pool file that has since
+moved is a 404 mid-build; a stale index plus a superseded package version is a silently
+different artifact. Both are worse than a loud failure, and the second one directly contradicts
+§11's rule that a claim gets a run and a log, not an assumption.
+
+
+§4  Does apt actually honour a pre-seeded archives dir? (the property the seed depends on)
+------------------------------------------------------------------------------------------
+Measured separately, because scripts/seed-binary-cache.sh is worthless if the answer is no.
+`apt-get install --download-only -o Dir::Cache::Archives=<dir>` on the host, nothing installed,
+nothing on the host changed:
+
+  empty dir, mtools          ->  Need to get 198 kB of archives.   Get:1 ... mtools [198 kB]
+  same dir, mtools pre-seeded ->  Need to get 0 B/198 kB of archives.
+  empty dir, squashfs-tools  ->  Need to get 194 kB of archives.   Get:1 ... squashfs-tools 1:4.6.1-1 [194 kB]
+  same dir, pre-seeded        ->  Need to get 0 B/194 kB of archives.
+
+The on-disk name apt wrote for the epoch package was `squashfs-tools_1%3a4.6.1-1_amd64.deb`,
+which is exactly the name live-build's cache/packages.binary holds. So the naming convention
+the seed script cross-checks is the right one, and apt does reuse the file.
+
+Also checked: `Restore_package_cache` copies into `chroot/var/cache/apt/archives` without
+creating `partial/`. apt tolerates that — the seeded run above completed with `partial/`
+deleted ("Download complete and in download only mode").
+
+And the gate that decides whether Restore runs at all is set in our tree
+(live/config/common:25-34, echoed in both config dumps):
+
+  LB_CACHE="true"  LB_CACHE_PACKAGES="true"  LB_CACHE_STAGES="bootstrap"  LB_CACHE_INDICES="false"
+
+
+§5  The run L anomaly, which this section used to call open and which is not
+---------------------------------------------------------------------------
+This section said run L's `Need to get 249 kB of archives` was unexplained: apt appeared to ignore
+a copy that `Restore_package_cache binary` had just put in front of it, and whether
+`cache/packages.binary` held `squashfs-tools` before run L's `binary_rootfs` ran was written off as
+unrecoverable. Both halves of that were wrong, and the correction was already in this repository
+when it was written. `logs/M1-runL-binary-rootfs-dns.txt` lines 89-99 measured it before anything
+was changed:
+
+    find /root/phantomos-m1/live/cache -name 'squashfs-tools*'   ->  zero hits, all five caches
+    cache/packages.binary                                        ->  25 .debs
+
+and every one of those 25 belongs to `binary_iso` or `binary_grub-efi` — `xorriso`, `mtools`,
+`syslinux-common`, `grub-efi-*`, `shim-*`, `dosfstools`, `librsvg2-bin`, `gettext-base`,
+`isolinux`, `mokutil`, the `libburn4/libisoburn1/libisofs6/libjte2` set. Those stages'
+`Save_package_cache binary` runs *before* their `Remove_packages`. `binary_rootfs` saves at line
+378, *after* `Remove_packages` at line 345.
+
+So apt did not ignore a restored copy. There was no copy to restore. `Restore_package_cache` can
+only serve what a previous `Save_package_cache` moved into the bucket, and the one stage that
+installs the ISO tools is the one stage whose save is ordered after its own purge — which is why
+its helper never accumulates while its neighbours' do.
+
+The "copy found in cache/packages.binary after the failure" that this section built its
+reconstruction on was the **seeded** one, put there afterwards by `scripts/seed-binary-cache.sh`.
+That log's own section C header carries the warning, and it was not heeded here:
+
+    ########## C. cache inventory — NOTE: captured AFTER seed-binary-cache.sh had run, so ##########
+    ##########    packages.binary reads 19M and the squashfs-tools find returns 1 hit.    ##########
+
+25 `.deb`s and 19 MB before the seed, 32 and 19 MB after; the extra seven are the helper and its
+dependencies. Reading the post-seed inventory as post-failure state is exactly the
+confident-wrong-answer failure mode §1 of this file warns about, and this section committed it.
+
+**Run M settled the forward direction, and it is not a reconstruction.** `binary_rootfs` started
+2026-11-01T15:24:59Z against the seeded bucket and printed:
+
+    The following NEW packages will be installed:
+      liblzo2-2 squashfs-tools
+    Need to get 0 B/249 kB of archives.
+    Preparing to unpack .../liblzo2-2_2.10-3+b1_amd64.deb ...
+    Preparing to unpack .../squashfs-tools_1%3a4.6.1-1_amd64.deb ...
+    P: Preparing squashfs image...
+
+`Need to get 0 B` — not one byte fetched. 249 kB is 193 888 + 55 100 = 248 988 B, the two seeded
+`.deb`s and nothing else, so the total apt quoted is itself evidence the bucket supplied both. The
+filenames apt unpacked are the seeded names verbatim, including the `%3a` epoch encoding in
+`squashfs-tools_1%3a4.6.1-1_amd64.deb` that §4 predicted and that a URI-derived name would have
+gotten wrong. Across all 4 460 log lines to that point, no `Get:`, `Ign:`, `Err:` or `Hit:` line
+names any of the five ISO tools, and there are zero `E:` lines. `binary_rootfs` reached
+"P: Preparing squashfs image..." 22 seconds after it started.
+
+What is still **not** established, and now does not need to be: whether `binary_rootfs`'s helper
+misses the bucket because of the save/purge ordering at lines 345 and 378, or because
+`Save_package_cache` runs `apt-get autoclean` first and autoclean discards it — the `Del` lines in
+that log's section K show it dropping `linux-image` (108 MB) and `firefox-esr` (79.9 MB) during the
+binary cycle. Separating those two would need an instrumented run of a stage that takes an hour to
+reach. The seed makes the question moot by putting the files in the bucket directly, and "moot" is
+recorded here as moot rather than dressed up as answered.
+
+
+
+§6  Decision: the proxy is not wired into the build
+----------------------------------------------------
+apt-cacher-ng is installed on the build host and was measured to work. It is still not adopted,
+for five reasons, in order of weight:
+
+1. It is redundant for the failure it was meant to fix. §2 shows it would serve the two .debs
+   offline — but scripts/seed-binary-cache.sh already removes the need to fetch them at all,
+   in-tree, with no daemon, and by construction rather than by cache warmth.
+2. It does not cover the failure that killed run K. That was three `InRelease` fetches. §2
+   shows index files 503 during an outage. A proxy would have turned run K's error message from
+   "Temporary failure resolving" into "503" and changed nothing else.
+3. There is no speed win to have. logs/M1-runL-binary-rootfs-dns.txt §4 measured a 48-minute
+   build fetching 17.8 MB total and zero .debs; the cost is 25m46s of apt *parsing* across five
+   `chroot_archives` invocations, which a proxy cannot touch.
+4. It is host state outside the repository. M1a's entire point is that the build is reproducible
+   from the committed tree, not from one machine's setup. A daemon a friend does not have is the
+   same class of defect as an `lb config` invocation that lived only in shell history.
+5. Adopting it would add a new single point of failure. LB_APT_HTTP_PROXY is never applied by
+   live-build (it is stored, dumped and validated, then ignored); the only mechanism is an
+   exported `http_proxy`, so a build would need a reachability probe and a fallback path or it
+   would fail whenever the daemon is down — a strictly worse failure mode than the one being
+   fixed, because it would be self-inflicted.
+
+One incidental finding worth keeping: apt-cacher-ng cannot cache https without MITM, and this
+host's own apt sources are `https://deb.debian.org/debian` while live-build's are
+`http://deb.debian.org/debian/` (LB_PARENT_MIRROR_BINARY and LB_MIRROR_BINARY in both config
+dumps). A proxy would therefore have covered the build and not the host. That asymmetry is
+another reason the http scheme in the build's mirrors is load-bearing, and SPEC.md:598-600 is
+the ruling that says it is not a §8 violation.
+
+
+§7  Host state after the test
+-----------------------------
+Post-test checks from the run itself:
+
+  test instances still running: 0
+  real proxy still active:      active, pid 5800   (unchanged from before the test)
+  host resolv.conf untouched:   1 nameserver line
+  run M still building:         yes
+
+The test's cleanup pattern matched the test config directory's absolute path, never a bare
+'acng' substring, because the real daemon runs `-c "/etc/apt-cacher-ng"` and a loose pattern
+would have killed it. The first draft of this test used `pkill -f 'acng.conf'`, which would
+have matched the real unit; that was caught and fixed before the run recorded here.
+
+Because the proxy is not adopted (§6), the daemon was then stopped and disabled rather than
+left listening on 0.0.0.0:3142 for nothing. It was not purged, so the measurement is
+repeatable. Verified after the change:
+
+  is-active:                inactive          (was: active)
+  is-enabled:               disabled          (was: enabled)
+  listeners on 3142:        0                 (was: 2 — IPv4 and IPv6)
+  pgrep apt-cacher-ng:      0
+  package still installed:  3.7.5-1
+  cache kept:               9.9M
+  host apt Proxy settings:  none
+  host resolv.conf:         1 nameserver line, unchanged
+  run M:                    still building, 0 E: lines
+
+
+§8  A first attempt failed, and why that is on the record
+----------------------------------------------------------
+The first run of this test produced no usable numbers, for three reasons, all of them mine:
+
+  - `apt-get --print-uris download` returned `https://` URIs (this host's sources are https),
+    and apt-cacher-ng cannot proxy https without MITM. curl through the proxy exited 56 with
+    zero bytes for both .debs. Fixed by rewriting the derived URI to `http://`, which is the
+    scheme the build's mirrors actually use — see §6's incidental finding.
+  - The labels `trixie/InRelease` and `main/Packages.xz` contained `/`, so `curl -o
+    "$T/warm.$LABEL"` wrote to a nonexistent directory and exited 23 with `http=200` — the
+    proxy had served them fine and the test threw the bytes away. Fixed by using flat labels.
+  - `apt-cacher-ng -c <file>` is wrong: `-c` takes a **directory** of config fragments
+    (usage: `apt-cacher-ng [options] [ -c configdir ] <var=value ...>`; the real unit is
+    `-c "/etc/apt-cacher-ng" ForeGround=1`). The first attempt died with
+    "Error opening file /tmp/acng-test/acng.conf/*.conf (Not a directory), terminating." and
+    every probe returned curl exit 7 (connection refused). Fixed by using a config directory
+    with a `zz-test.conf` override, which also made the test more faithful (§1 step 3).
+
+Recorded because a test that reports "the proxy does not work" for any of these three reasons
+would have produced the opposite of the true conclusion in §2, and because the https finding is
+only visible in the failure.
+
+
+===============================================================================================
+RAW OUTPUT — the successful run, 2026-11-01, verbatim
+===============================================================================================
+########## 0. tools and versions ##########
+  unshare        /usr/bin/unshare
+  ip             /usr/sbin/ip
+  curl           /usr/bin/curl
+  sha256sum      /usr/bin/sha256sum
+  apt-get        /usr/bin/apt-get
+  daemon:         /usr/sbin/apt-cacher-ng
+  version:        3.7.5-1
+  real proxy:     active, pid 5800
+  real ExecStart: /usr/sbin/apt-cacher-ng -c "/etc/apt-cacher-ng" ForeGround=1
+
+########## 1. derive the object list from apt, then force the scheme the build uses ##########
+  --- objects under test (POS = warmed before isolation, NEG = never warmed) ---
+    POS  squashfs-tools.deb   http://deb.debian.org/debian/pool/main/s/squashfs-tools/squashfs-tools_4.6.1-1_amd64.deb
+    POS  liblzo2-2.deb        http://deb.debian.org/debian/pool/main/l/lzo2/liblzo2-2_2.10-3%2bb1_amd64.deb
+    POS  InRelease            http://deb.debian.org/debian/dists/trixie/InRelease
+    POS  Packages.xz          http://deb.debian.org/debian/dists/trixie/main/binary-amd64/Packages.xz
+    NEG  mtools.deb-CONTROL   http://deb.debian.org/debian/pool/main/m/mtools/mtools_4.0.48-1_amd64.deb
+
+########## 2. warm the REAL proxy (3142) with the POS objects ##########
+  cache before: 1.4M, 6 files
+  squashfs-tools.deb   http=200 bytes=193888
+  liblzo2-2.deb        http=200 bytes=55100
+  InRelease            http=200 bytes=140421
+  Packages.xz          http=200 bytes=9678380
+  cache after:  9.9M, 10 files
+  --- where the proxy put them ---
+        140421  /var/cache/apt-cacher-ng/debrep/dists/trixie/InRelease
+           161  /var/cache/apt-cacher-ng/debrep/dists/trixie/InRelease.head
+       9678380  /var/cache/apt-cacher-ng/debrep/dists/trixie/main/binary-amd64/Packages.xz
+           182  /var/cache/apt-cacher-ng/debrep/dists/trixie/main/binary-amd64/Packages.xz.head
+        138612  /var/cache/apt-cacher-ng/debrep/dists/trixie/Release
+           159  /var/cache/apt-cacher-ng/debrep/dists/trixie/Release.head
+         55100  /var/cache/apt-cacher-ng/debrep/pool/main/l/lzo2/liblzo2-2_2.10-3+b1_amd64.deb
+           184  /var/cache/apt-cacher-ng/debrep/pool/main/l/lzo2/liblzo2-2_2.10-3+b1_amd64.deb.head
+        193888  /var/cache/apt-cacher-ng/debrep/pool/main/s/squashfs-tools/squashfs-tools_4.6.1-1_amd64.deb
+           198  /var/cache/apt-cacher-ng/debrep/pool/main/s/squashfs-tools/squashfs-tools_4.6.1-1_amd64.deb.head
+  --- sha256 of the warmed copies ---
+    0584fba32e13e0ab8285fb16c27adea1ec03a73669c18702821094fd6ca86675  /tmp/acng-test/warm.InRelease
+    f3032201fe2928a87e13f05ce256ff3ac2a7860c7e594dc51ae6d7348a4466ce  /tmp/acng-test/warm.liblzo2-2.deb
+    7778d3e3f303b7ddb8ce0fe7c8d57473a076c6bf2e8f241f75421d2396352498  /tmp/acng-test/warm.Packages.xz
+    0e185122f5858132bbc709e26228ba28cf7f0c41f6ed26e3f55f518f2a53b59d  /tmp/acng-test/warm.squashfs-tools.deb
+
+########## 3. snapshot the cache and build an isolated config ##########
+  snapshot: 9.8M, 10 files
+  --- override file ---
+    CacheDir: /tmp/acng-test/cache
+    LogDir: /tmp/acng-test/log
+    PidFile: /tmp/acng-test/acng.pid
+    Port: 3143
+  --- config dir contents ---
+    acng.conf
+    backends_debian
+    backends_debian.default
+    backends_debvol
+    backends_gentoo.default
+    backends_kali.default
+    backends_ubuntu
+    backends_ubuntu.default
+    security.conf
+    zz_debconf.conf
+    zz-test.conf
+
+########## 4. run the isolated proxy in a loopback-only netns and probe it ##########
+    interfaces in this netns:
+      1: lo: <LOOPBACK,UP,LOWER_UP> mtu 65536 qdisc noqueue state UNKNOWN mode DEFAULT group default qlen 1000    link/loopback 00:00:00:00:00:00 brd 00:00:00:00:00:00
+    sanity: upstream must be unreachable from here
+      direct upstream fetch exit=6 (non-zero required; 6 = could not resolve host)
+    starting the isolated daemon
+      start exit=0
+      listening: LISTEN 0      250          0.0.0.0:3143      0.0.0.0:*
+      listening: LISTEN 0      250             [::]:3143         [::]:*
+    --- probes, all with upstream unreachable ---
+    POS  squashfs-tools.deb   http=200            bytes=193888    sha256=0e185122f5858132bbc709e26228ba28cf7f0c41f6ed26e3f55f518f2a53b59d
+    POS  liblzo2-2.deb        http=200            bytes=55100     sha256=f3032201fe2928a87e13f05ce256ff3ac2a7860c7e594dc51ae6d7348a4466ce
+    POS  InRelease            http=503            bytes=514       sha256=dc49eeea3a4893d1836039384ef72ff37004feda58725669db6fb4e89d35d153
+    POS  Packages.xz          http=503            bytes=514       sha256=dc49eeea3a4893d1836039384ef72ff37004feda58725669db6fb4e89d35d153
+    NEG  mtools.deb-CONTROL   http=503            bytes=514       sha256=dc49eeea3a4893d1836039384ef72ff37004feda58725669db6fb4e89d35d153
+    --- isolated daemon log tail ---
+
+########## 5. compare served bytes against the warmed originals ##########
+  squashfs-tools.deb: IDENTICAL (0e185122f5858132bbc709e26228ba28cf7f0c41f6ed26e3f55f518f2a53b59d)
+  liblzo2-2.deb: IDENTICAL (f3032201fe2928a87e13f05ce256ff3ac2a7860c7e594dc51ae6d7348a4466ce)
+  InRelease: DIFFERS warm=0584fba32e13e0ab8285fb16c27adea1ec03a73669c18702821094fd6ca86675 served=dc49eeea3a4893d1836039384ef72ff37004feda58725669db6fb4e89d35d153
+  Packages.xz: DIFFERS warm=7778d3e3f303b7ddb8ce0fe7c8d57473a076c6bf2e8f241f75421d2396352498 served=dc49eeea3a4893d1836039384ef72ff37004feda58725669db6fb4e89d35d153
+
+########## 6. cleanup ##########
+  test instances still running: 0
+  real proxy still active:      active, pid 5800
+  host resolv.conf untouched:   1 nameserver line(s)
+  run M still building:
+       1523       24:05 bash /root/phantomos-m1/.build-iso.running.sh /mnt/c/Users/INFINITY/OneDrive/Desktop/phantomOS
+
+(Note on §5's "DIFFERS" lines: those are the 514-byte 503 pages, not corrupted index files.
+The table in §2 states it plainly; the raw comparator only knows how to say "not identical".)
+
+
+===============================================================================================
+RAW OUTPUT — the failed first attempt, kept because §8 refers to it
+===============================================================================================
+########## 1. derive the object list from apt, do not hardcode versions ##########
+  --- the objects under test (POS = warmed before isolation, NEG = never warmed) ---
+    POS  squashfs-tools.deb   https://deb.debian.org/debian/pool/main/s/squashfs-tools/squashfs-tools_4.6.1-1_amd64.deb
+    POS  liblzo2-2.deb        https://deb.debian.org/debian/pool/main/l/lzo2/liblzo2-2_2.10-3%2bb1_amd64.deb
+    POS  trixie/InRelease     http://deb.debian.org/debian/dists/trixie/InRelease
+    POS  main/Packages.xz     http://deb.debian.org/debian/dists/trixie/main/binary-amd64/Packages.xz
+    NEG  mtools.deb-CONTROL   https://deb.debian.org/debian/pool/main/m/mtools/mtools_4.0.48-1_amd64.deb
+
+########## 2. warm the REAL proxy (3142) with the POS objects ##########
+  squashfs-tools.deb   http=000 bytes=0
+curl-exit-56
+  liblzo2-2.deb        http=000 bytes=0
+curl-exit-56
+  trixie/InRelease     http=200 bytes=0
+curl-exit-23
+  main/Packages.xz     http=200 bytes=0
+curl-exit-23
+sha256sum: '/tmp/acng-test/warm.*': No such file or directory
+
+########## 4. run the isolated proxy in a loopback-only netns and probe it ##########
+      ok: direct upstream fetch failed (curl exit 6)
+    starting the isolated daemon
+  Error opening file /tmp/acng-test/acng.conf/*.conf (Not a directory), terminating.
+    --- probes ---
+    POS  squashfs-tools.deb   http=curl-exit-7    bytes=0         sha256=none
+    POS  liblzo2-2.deb        http=curl-exit-7    bytes=0         sha256=none
+    POS  trixie/InRelease     http=curl-exit-7    bytes=0         sha256=none
+    POS  main/Packages.xz     http=curl-exit-7    bytes=0         sha256=none
+    NEG  mtools.deb-CONTROL   http=curl-exit-7    bytes=0         sha256=none
+
+
+===============================================================================================
+RAW OUTPUT — §4, apt's reuse of a pre-seeded archives dir
+===============================================================================================
+########## does apt use a pre-seeded Dir::Cache::Archives? ##########
+-- control: empty seed dir, --download-only --
+    Need to get 198 kB of archives.
+    After this operation, 410 kB of additional disk space will be used.
+    Get:1 https://deb.debian.org/debian trixie/main amd64 mtools amd64 4.0.48-1 [198 kB]
+    files in seed dir: 1
+
+-- now seed the dir with the file apt itself just wrote, and repeat --
+    seeded name(s): mtools_4.0.48-1_amd64.deb
+    Need to get 0 B/198 kB of archives.
+    After this operation, 410 kB of additional disk space will be used.
+
+########## same test for an EPOCH package: squashfs-tools 1:4.6.1-1 ##########
+    Need to get 194 kB of archives.
+    Get:1 https://deb.debian.org/debian trixie/main amd64 squashfs-tools amd64 1:4.6.1-1 [194 kB]
+    apt's own on-disk name: squashfs-tools_1%3a4.6.1-1_amd64.deb
+    vs the name live-build's cache holds:
+      liblzo2-2_2.10-3+b1_amd64.deb
+      squashfs-tools_1%3a4.6.1-1_amd64.deb
+-- seed it, remove partial, repeat --
+    Need to get 0 B/194 kB of archives.
+
+-- does apt tolerate a MISSING partial/ dir? (Restore_package_cache does not create one) --
+    Building dependency tree...
+    Reading state information...
+    0 upgraded, 0 newly installed, 1 reinstalled, 0 to remove and 39 not upgraded.
+    Need to get 0 B/194 kB of archives.
+    After this operation, 0 B of additional disk space will be used.
+    Download complete and in download only mode

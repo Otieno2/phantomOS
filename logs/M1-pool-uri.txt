@@ -1,0 +1,61 @@
+M1 — which file: URI forms does live-build bind into the chroot? (2026-10-30, WSL Debian as root)
+
+Claim under test: the deb line in live/config/archives/phantomos.list.chroot needs three
+slashes after file:. One line decides it — the guard in Chroot_try_bind_path,
+/usr/share/live/build/functions/chroot_bind_path.sh, lines 24-35:
+
+  	if echo "${2}" | grep -E -q '^file://(localhost)?/'
+  	then
+  		BIND_SRC="$(readlink -f $(echo ${2} | sed --regexp-extended -e 's|^file://(localhost)?||'))"
+  
+  		BIND_DEST=${CHROOT}${BIND_SRC}
+  		if [ ! -d "${BIND_DEST}" -o \
+  			-z "$(cat /proc/mounts | awk -vdir="${BIND_DEST}" '$2 ~ dir { print $2}')" ]
+  		then
+  			Echo_message "Binding local repository path ${BIND_SRC}"
+  			mkdir -p "${BIND_DEST}"
+  			mount --bind "${BIND_SRC}" "${BIND_DEST}"
+  		fi
+
+Each case calls that function directly (sourced, not reimplemented) against a fresh scratch
+directory standing in for the chroot, binding the real signed pool at /var/tmp/phantomos-build/pool. The mount table
+and the file listing are read for that case own path, and every mount is taken down before
+any directory is removed — see the last section for why that order matters.
+
+  case 1  uri     : file:///var/tmp/phantomos-build/pool
+         function  : I: Binding local repository path /var/tmp/phantomos-build/pool
+         mount     : MOUNTED
+         files     : InRelease Packages Packages.gz phantomos-base_0.1.0-1_all.deb phantomos-config_0.1.0-1_all.deb phantomos-desktop_0.1.0-1_all.deb phantomos-release_0.1.0-1_all.deb Release Release.gpg 
+
+  case 2  uri     : file://localhost/var/tmp/phantomos-build/pool
+         function  : I: Binding local repository path /var/tmp/phantomos-build/pool
+         mount     : MOUNTED
+         files     : InRelease Packages Packages.gz phantomos-base_0.1.0-1_all.deb phantomos-config_0.1.0-1_all.deb phantomos-desktop_0.1.0-1_all.deb phantomos-release_0.1.0-1_all.deb Release Release.gpg 
+
+  case 3  uri     : file://var/tmp/phantomos-build/pool
+         function  : <said nothing>
+         mount     : not-mounted
+         files     : <none visible>
+
+  case 4  uri     : file:/var/tmp/phantomos-build/pool
+         function  : <said nothing>
+         mount     : not-mounted
+         files     : <none visible>
+
+Conclusion: file:///... and file://localhost/... bind. file://var/... (first path element eaten
+as an authority) and file:/var/... (one slash) reach no mount at all, and apt is then handed a
+source line pointing inside the chroot at a directory nobody created — the same
+"File not found - .../Release" failure that §9.1 records for the first M1 chroot-stage attempt,
+where the pool was delivered by includes.chroot_before_packages and so was not on disk yet
+either. Whether the mounted pool is then installed from is the build log claim, not this one.
+
+=== the near-miss, recorded because it is the reason for the unmount-first order ===
+An earlier version of this test left a bind mount up and ran rm -rf on the scratch directory.
+rm recursed through the mountpoint and deleted the pool at its own source:
+  rm: cannot remove '/tmp/bindtest/root/var/tmp/phantomos-build/pool': Device or resource busy
+  — and the directory behind it came back empty, index and four .debs gone. Nothing was lost
+  beyond the run: the pool is generated, and scripts/build-packages.sh rebuilt it in a second.
+umount -R does not save you there — it requires its argument itself to be a mountpoint, so
+"umount -R /tmp/bindtest" fails and leaves the child mount in place. The cleanup that works is
+to unmount each target read out of /proc/mounts. scripts/build-packages.sh does exactly that,
+on the chroot-side path live-build mounts into, before it removes anything (§9.1).

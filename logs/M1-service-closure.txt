@@ -1,0 +1,42 @@
+Do §6.5's three services exist in the §5 selection at all? run 2026-10-30.
+
+§6.5 said ssh, avahi-daemon and cups-browsed are 'disabled by default and enabled
+explicitly'. A machine cannot disable a unit it does not ship, and M1 turns
+Recommends off, so this asks whether the phrase still describes reality.
+
+Method: the same empty-status simulation as logs/M1-recommends-delta.txt, with the
+SET taken back out of that file so the input is identical rather than retyped:
+  apt-get -o Dir::State::status=/root/empty/status --no-install-recommends -s install $SET
+  | awk '/^Inst /{print $2}'  -> names, :amd64 stripped, sorted
+Caveat: this is the §5 selection's closure from a bare bootstrap, not the built
+image. The image is measured by scripts/m1-diff.sh and its drops guard.
+
+=== reproduction check ===
+SET words: 41
+closure size: 735 packages (the delta file recorded 735 for this SET and method)
+
+=== membership ===
+  ABSENT    avahi-daemon
+  ABSENT    cups-browsed
+  ABSENT    openssh-server
+  present   openssh-client
+  ABSENT    modemmanager
+  ABSENT    snapd
+  present   sudo
+  present   nftables
+  present   apparmor
+  present   unattended-upgrades
+  present   lightdm
+  present   xfce4
+
+=== reading ===
+avahi-daemon, cups-browsed and openssh-server are not in the closure, so in the
+M1 package set there is no unit to disable and no listener to block — §6.5's
+'disabled by default' becomes 'not installed', which is the stronger property and
+the one worth claiming. It is a consequence of two other decisions
+(--apt-recommends false, and openssh-client rather than -server in §5's base), not
+a control anyone built. That matters for §6.10: a check that asserts the units are
+masked would pass for the wrong reason, and a check that asserts they are absent is
+the honest one. If a friend installs avahi or openssh-server later, §6.5's wording
+has to become true again, so the masking is still worth shipping in
+phantomos-config as the thing that survives a package being added.

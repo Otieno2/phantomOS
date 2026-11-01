@@ -1,0 +1,55 @@
+# live-media infrastructure — not §5 inventory.
+#
+# These are the live system itself: they are what makes the ISO boot to a
+# runnable session rather than what makes it PhantomOS. §5's inventory is about
+# the latter, so nothing here is justified by §5, and the M1 diff treats this file
+# as its own bucket (see the diff definition in §9's M1 section).
+#
+# The first four were copied verbatim from the M0 stock tree's own
+# config/package-lists/live.list.chroot, i.e. they are live-build's defaults for a
+# trixie live image, not a PhantomOS choice. What this header used to say — "M0's
+# build and boot runs (A/H) prove the set works; no per-package justification is
+# claimed here" — was the trap that logs/M1-no-live-user.txt documents: M0's runs
+# proved those four PLUS live-config's Recommends, because M0 built with Recommends
+# on. --apt-recommends false (live/auto/config:122) removed the implicit half, and
+# run M's ISO booted to `debian login: user (automatic login)` / `Authentication
+# failure` because 0030-user-setup gates on pkg_is_installed "user-setup" and
+# exited 0. A four-line manifest was never the live system; it was the explicit
+# half of it. So the three added below carry their reasons in this file, and the
+# "none of them are ours" claim no longer holds for them: they are ours now.
+
+live-boot
+live-config
+live-config-systemd
+systemd-sysv
+
+# The account. live-config's /usr/lib/live/config/0030-user-setup creates the live
+# user at first boot through user-setup-apply, and its Init() exits 0 unless the
+# user-setup package is installed. live-config only Recommends it, so with
+# --apt-recommends false the component silently did nothing: /etc/passwd in run M's
+# image has no uid >= 1000 and root's shadow field is "*", and both login paths
+# (the getty generator's --autologin user, and 0100-lightdm's autologin-user=user)
+# failed against a user that does not exist. Without this line the ISO boots and
+# cannot be logged into. logs/M1-no-live-user.txt §1-§3.
+user-setup
+
+# The locale. 0050-locales gates on locales|locales-all, both absent for the same
+# reason, so /etc/default/locale was never written and locale-gen never ran; run
+# M's image ships no /etc/default/locale and only C.utf8 under /usr/lib/locale.
+# A desktop with no LANG is degraded rather than unusable, but this is the
+# component that was supposed to set it. logs/M1-no-live-user.txt §4.
+locales
+
+# The rest of what live-config Recommends as the live system. It provides the
+# live-* user-facing tools — measured by downloading and listing the .deb
+# (1:20240525, 26764 B), not read off the index's Description, which does not
+# name them: live-update-initramfs, live-persistence, live-toram, live-system,
+# live-medium-eject and others. Was in M0. Not load-bearing for login; named so
+# that this file is the live system rather than most of it.
+# One consequence worth knowing before someone is surprised by it: it also ships
+# /usr/sbin/update-initramfs and diverts initramfs-tools' copy of the same path
+# aside, so in this image dpkg -S on that file answers live-tools. The wrapper
+# passes straight through on a non-live system and no-ops on read-only media, so
+# it is harmless in the ISO and after an install — logs/M1-no-live-user.txt §9,
+# and §12 item 15 carries the M3 question.
+live-tools

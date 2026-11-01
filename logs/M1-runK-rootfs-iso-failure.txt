@@ -1,0 +1,175 @@
+# M1 run K — the firmware-amendment build: rootfs complete, ISO never assembled
+
+Build command: `PHANTOMOS_WORK=/root/phantomos-m1 PHANTOMOS_LOG=M1-lb-build-firmware.log
+bash scripts/build-iso.sh` (the committed path, nothing typed into the build tree).
+
+Start `2026-10-30T23:18:11Z`, end `2026-10-31T00:09:06Z` — 51 minutes. Both are UTC; the
+timestamps *inside* `logs/M1-lb-build-firmware.log` are the host's local clock, which is EAT
+(UTC+3), so the log's `[2026-10-31 02:18:11]` and the file name's `2026-10-30T231811Z` are the
+same instant. `scripts/build-iso.sh` names its output with `date -u`; live-build stamps with
+local time. Every run row in §9.1 therefore has to say which clock it is quoting.
+
+Config: `logs/M1-config-dump-2026-10-30T231811Z.txt`, 98 assignments, `LB_FIRMWARE_CHROOT="false"`
+(the §5 2026-10-31 amendment). Its three predecessors —
+`logs/M1-config-dump-2026-10-30T{191222,193558,204433}Z.txt` — all carry `"true"`, which is the
+before/after pair §5's amendment claims.
+
+## 1. What finished
+
+Every `chroot_*` stage executed (`logs/M1-firmware-chroot-off-run.txt` §2 has the stage times;
+`chroot_firmware` printed no `P: Begin scheduling firmware installation` line and took 0 s, which
+is the measured signature of the amendment). `binary_chroot` ran 02:51:35-02:51:46 local.
+`binary_rootfs` ran 02:53:46 local and produced the artifact:
+
+```
+/root/phantomos-m1/live/binary/live/filesystem.squashfs
+  837296128 bytes
+  sha256 30876ccbefe4575241e745740db89aca7ac5a1942f9d89a891cbe2c59b9ce76d
+```
+
+`scripts/m1-diff.sh` was then run against it and the §10 exit criterion came back satisfied — 834
+installed packages, 150 manual selections, 684 in the dependency closure, 197 expected selections,
+55 of them named by §5/live/ours, both directions empty. That measurement is the milestone gate; it
+is about the rootfs, and the rootfs was complete when the failure below happened.
+
+**A correction to the citation this paragraph carried.** It used to point at `logs/M1-diff.txt`, and
+that file is not run K's. Its mtime is `2026-10-31 01:42`, while run K's `binary_rootfs` ran at
+02:53:46 — it predates the artifact it was cited for by seventy minutes. Its contents are a
+*failing* diff of the earlier build (838 installed, 156 selections, `MISSING apparmor`,
+`MISSING apt-listchanges`, `MISSING build-essential`), which is the pool-ordering failure §9.1
+records. Run K's own diff stdout went to a terminal and was never archived, so citing that file made
+a failing diff look like the evidence for a passing one.
+
+What *was* archived is the seven data files the script writes next to its stdout, in `logs/runK/`,
+all mtime `2026-10-31 03:12`. The verdict above is reproducible from them, and was re-made at
+2026-11-01T17:29Z using the script's own comparison under the `LC_ALL=C` it pins:
+
+```
+comm -23 <(sort -u logs/runK/M1-expected-named.txt) <(sort -u logs/runK/M1-image-installed.txt)
+  -> (empty)                                    direction 1, MISSING
+comm -13 <(sort -u logs/runK/M1-expected-selections.txt) <(sort -u logs/runK/M1-image-selections.txt)
+  -> (empty)                                    direction 2, EXTRA
+
+wc -l logs/runK/*.txt
+     55 M1-expected-named.txt
+    197 M1-expected-selections.txt
+    684 M1-image-auto.txt
+    834 M1-image-installed-raw.txt
+    834 M1-image-installed.txt
+    150 M1-image-selections.txt
+      1 M1-squashfs-entries.txt   (contents: "squashfs path entries listed: 47705")
+```
+
+Run K and run M therefore reached the same verdict from the same numbers, which is what §9.1's run M
+row claims — and that claim now rests on archived files rather than on scrollback. The general lesson
+is the one `logs/M1-no-live-user.txt` §5 already draws from a different direction: a script's stdout
+is the part that gets lost, so the data files it writes are the evidence, and a citation has to name
+the file whose contents were actually checked.
+
+## 2. What did not finish, and the exact failure
+
+`binary_rootfs` does not end with the squashfs. Its last act (`/usr/lib/live/build/binary_rootfs`
+lines 347-362) is a teardown that moves the image chroot aside and re-runs live-build's archive
+bookkeeping, and that bookkeeping runs `apt-get update` inside the build chroot. Run K died there,
+at `logs/M1-lb-build-firmware.log` lines 3854-3882:
+
+```
+[2026-10-31 03:09:06] lb chroot_prep remove all mode-archives-binary
+[2026-10-31 03:09:06] lb chroot_archives binary remove
+P: Deconfiguring file /etc/apt/sources.list
+P: Unbinding local repository path
+rmdir: failed to remove directory '/root/phantomos-m1/live/chroot': Directory not empty
+Ign:1 http://deb.debian.org/debian trixie InRelease
+Get:1 http://deb.debian.org/debian trixie InRelease [9194 B]
+Err:1 http://deb.debian.org/debian trixie InRelease
+  Temporary failure resolving 'deb.debian.org'
+  Clearsigned file isn't valid, got 'NOSPLIT' (does the network require authentication?)
+...
+E: An unexpected failure occurred, exiting...
+P: Begin unmounting filesystems...
+P: Saving caches...
+```
+
+then live-build's own cleanup ran (the `Del …` block: `isolinux`, `grub-efi-*`, `xorriso`,
+`squashfs-tools`, `mtools`, `syslinux-common`, `dosfstools`, … — the ISO-generation tools it had
+installed into the *build* chroot, never into the image, which is why the diff in §1 is clean).
+
+No ISO exists. `binary/` contained only `live/filesystem.squashfs`; `find /root -maxdepth 5 -name
+'*.iso'` returns only M0's `live-image-amd64.hybrid.iso`. No `binary_*` stage file was written:
+`.build/` stopped at `binary_chroot`, `chroot_apt`, `chroot_archives` (22 stamps, newest
+`chroot_archives` at 02:53 local).
+
+The `rmdir` line is recorded as seen. Its cause is **not** established here: live-build tries it
+while unbinding the pool path, `chroot` still had content, and the build continued past it (it is
+stderr from a command live-build does not treat as fatal). Note it is *also* the reason the state
+described in §3 looks the way it does.
+
+## 3. Why this failure could not be resumed, and why that mattered
+
+A resume was the obvious cheap move — 51 minutes of build had just died on a network blip. It was
+rejected after reading the source, because `binary_rootfs` is not idempotent against this state:
+
+- line 277-280: it deletes `binary/live/filesystem.squashfs` before it starts. The good artifact
+  would have been removed first.
+- line 336: it then squashes `chroot/chroot` — and the teardown that died had already run line 350,
+  `mv chroot/chroot chroot.tmp`. Measured after the failure: `live/chroot` = 211 MB (the copy of
+  `cache/bootstrap`, with `chroot.cache` present, `chroot/chroot` **absent**) and `live/chroot.tmp`
+  = 2.4 GB (the real image). So the resume would have deleted the only complete rootfs and then
+  mksquashfs'd a directory that no longer exists.
+- Hand-moving `chroot.tmp` back into place would have been repairing build state by hand — a
+  chroot that "nobody can say anything about", which is the phrase §9.1 already uses for the
+  chmod-damaged tree.
+
+So run K's artifact was archived (`/root/phantomos-evidence/runK/`, same sha256 as above, plus the
+`chroot.packages.{live,install}` and `chroot.files` it was diffed with) and the milestone run was
+restarted as §9.1 requires: state deleted, fetch caches kept, every stage executing.
+
+## 4. The failure was the host resolver, not the repositories
+
+Re-tested at 2026-10-31T00:22Z, after the build had died, with no other change:
+
+```
+http://deb.debian.org/debian/dists/trixie/InRelease          200  -----BEGIN PGP SIGNED MESSAGE-----
+http://security.debian.org/dists/trixie-security/InRelease   200  -----BEGIN PGP SIGNED MESSAGE-----
+http://deb.debian.org/debian/dists/trixie-updates/InRelease  200  -----BEGIN PGP SIGNED MESSAGE-----
+```
+
+`getent hosts deb.debian.org security.debian.org` resolves both; `/etc/resolv.conf` is the
+WSL-generated file with a single `nameserver 10.255.255.254` (the mirrored-NAT gateway), so the
+guest has exactly one path to name resolution and no fallback. `Ign:` followed by `Get:` of the
+same URL inside one second, and the same name failing twice for two different hostnames, is a
+resolver timeout pattern, not a repository or a keyring problem.
+
+Host facts at the launch of the closing run: `2026-10-31T00:43:16Z` = `03:43:16+0300` local, WSL
+booted `2026-10-30 20:30:55`, load 0.47, 484 MB of 3854 MB used, 950 G free on `/dev/sdd`.
+
+## 5. One warning the run produced, correctly attributed
+
+`W: No zstd in /usr/bin:/sbin:/bin, using gzip` appears three times in the log — lines 3090 and
+3373 (both inside `chroot_install-packages install`) and line 3462 (inside `chroot_hacks`). Each
+one is emitted by `update-initramfs: Generating /boot/initrd.img-6.12.113+deb13-amd64` running
+*inside the chroot*: initramfs-tools would default to zstd, no `zstd` binary is present in the
+chroot or on the host (`command -v zstd` is empty), so it falls back to gzip.
+`auto/config` independently pins `--initramfs-compression gzip`, so the outcome matches the
+configuration; what the warning buys us is the knowledge that the fallback is not doing anything
+surprising. M0's build logged the same warning, so this is not a regression from the amendment.
+
+## 6. Follow-up actions taken because of this run
+
+- `live/config/apt/apt.conf` added: `Acquire::Retries "5"; Acquire::http::Timeout "30";`.
+  `chroot_apt install` copies it to the chroot's `/etc/apt/apt.conf` (its "Configuring apt config"
+  step, `/usr/lib/live/build/chroot_apt` lines 79-86) and `chroot_apt remove` deletes it again
+  (lines 160-169), both before the chroot is copied into the image — measured: `lb config` in a
+  scratch tree left `config/apt/apt.conf` in place, and `APT_CONFIG=<that file> apt-config dump`
+  prints both settings back, comments and all. It covers the chroot and binary stages, **not**
+  debootstrap, which runs before `chroot_apt`. Whether 5 retries survive an outage as long as this
+  one was is measured by run L's log, not claimed here.
+- `scripts/m1-diff.sh` now pins `LC_ALL=C`. Its `sort -u` and `comm` both inherited the caller's
+  collation; the image lists this script writes are not in byte order (`sort -c` stops at line 97,
+  `g++-x86-64-linux-gnu`, in both the 838-line and the 834-line list). Re-checking run K's delta
+  under byte order gave the same result, so no claim below changes — but §10's gate should not
+  depend on which shell it happens to be run from.
+- Run K's four-name delta re-verified under `LC_ALL=C` against the pre-amendment build
+  (`logs/pre-config-image-installed.txt`, 838) and run K (834): removed = `indi-dsi`,
+  `libindi-data`, `libindidriver1`, `libnova-0.16-0t64`; added = nothing. The enumerated name and
+  its three private dependencies, exactly as §5's amendment says.

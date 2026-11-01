@@ -1,0 +1,150 @@
+`harness/boot-test.sh` deleted the run it was pointed at, and the fix for that found a second bug
+that had stopped the harness's own frame-capture fix from ever executing.
+
+Why this file exists
+  Task: boot-test run N's ISO (§10's M1 exit needs it, and three things are still unexercised —
+  `/etc/apt/apt.conf.d/00recommends` as installed behaviour, the shift-minus underscore mapping, a
+  real desktop VT). Checking the harness before pointing it at run N turned up two defects. Both
+  are now fixed and both fixes have been run. Neither was found by a boot test.
+
+=== defect 1: `rm -rf` of a caller-named directory, unconditionally ===
+As the file stood, line 80-81 were:
+
+    W="$OUTROOT/$RUN"
+    rm -rf "$W"; mkdir -p "$W"
+
+`--run` is caller-supplied and is also the filename prefix of every frame the harness writes
+(`$RUN-<label>.png`). So passing a name that has been used before does not collide and warn — it
+deletes that run's photographs before taking new ones, and nothing in the output mentions it.
+
+This is the third instance of one defect class in this repo, and §11 now has a rule for the class
+("A log with a fixed filename is not a log for a run"). It is the worst of the three here:
+
+  * `/root/phantomos-tests/M1-boot` holds run M's 74 files — the only photographs of the
+    no-login defect that `logs/M1-no-live-user.txt` is written from. They had not been copied
+    anywhere else on the host.
+  * `logs/evidence/` in the repo holds those frames under the *same* fixed names
+    (`M1-boot-cmd-1.png`, `M1-boot-boot-85.png`, …). So a second `--run M1-boot` would destroy
+    them on the host and then silently overwrite the repo's copies when the new frames were
+    copied in. The previous run's evidence would not just be lost; it would be replaced by
+    different pictures under the names the older write-ups cite.
+
+Fix: refuse an existing non-empty run directory, name what is in it, and require
+`PHANTOMOS_ALLOW_RUN_OVERWRITE=1` to go ahead — the same idiom `scripts/build-iso.sh` uses for a
+non-idle work tree, so the override has to be deliberate rather than habitual. Exit 2, matching
+the file's other pre-flight failures.
+
+=== the three branches, all three run ===
+2026-11-01T18:32:22Z / 21:32:22+03:00. bash 5.2.37. Run N's build was live throughout
+(wrapper pid 73192, 3172 log lines by the end of the test); nothing under `$WORK` was touched and
+no test wrote to the repo.
+
+Case A — existing non-empty dir, no override, aimed at the REAL run M directory:
+
+    E: refusing to start — /root/phantomos-tests/M1-boot exists and holds 74 entries.
+       --run is the filename prefix for every frame this writes, so reusing the name
+       replaces that run's evidence. Pick a name nobody has used, or set
+       PHANTOMOS_ALLOW_RUN_OVERWRITE=1 to re-shoot this one deliberately.
+    exit: 2
+
+  Integrity was checked around it rather than assumed, with a manifest of every path and size:
+    before: 74 entries, sha256 85aa8d763fad267cee1d5f663f5644e15e3496c30e1324a08c0aa64419e5e19e
+    after:  74 entries, sha256 85aa8d763fad267cee1d5f663f5644e15e3496c30e1324a08c0aa64419e5e19e
+  Re-checked again at 18:36:56Z after the second fix, same manifest sha256, still 74 entries.
+
+Case B — fresh name, temp `--out`, a text file for `--iso`, `--wait 1` so it cannot hang:
+  The guard did not fire (`refusing to start` lines: 0) and the run directory was created. This is
+  the case that surfaced defect 2, below.
+
+Case C — override, aimed at a **copy** (`cp -a` of the real dir into the temp `--out`), never at
+  the real one:
+
+    W: PHANTOMOS_ALLOW_RUN_OVERWRITE=1 — replacing 74 entries in /tmp/guardtest.108087/M1-boot.
+
+  The copy went from 74 entries to 4, i.e. the override really does replace, and the real
+  directory's manifest sha256 was still 85aa8d76… afterwards. Testing the destructive branch
+  against the evidence it could destroy would have been the wrong way to find out whether it
+  works.
+
+Cleanup: both temp directories removed, real directory 74 entries, `ps` confirms run N unaffected.
+
+=== defect 2: `shot()` could not execute, and had never executed ===
+Case B died immediately with
+
+    harness/boot-test.sh: line 108: label: unbound variable
+
+Line 108 was
+
+    local label="$1" ppm="$W/$RUN-$label.ppm" png="$W/$RUN-$label.png" s1 s2 i
+
+which references `label` in the same `local` that declares it. Bash expands every word of a
+`local`/`declare` before assigning any of them, so `$label` is read before `label` exists. Both
+faces measured on the build host rather than reasoned about:
+
+    $ bash -c 'set -u; f(){ local a="$1" b="x-$a"; printf "%s\n" "$b"; }; f hello'
+    environment: line 1: a: unbound variable          exit: 127
+
+    $ bash -c 'set -u; a=STALE; f(){ local a="$1" b="x-$a"; printf "%s\n" "$b"; }; f hello'
+    x-STALE                                           exit: 0
+
+The second is the reason this is not merely a crash: with a global of that name in scope the
+function runs, reports success, and writes the frame under the **stale** name. A harness whose
+job is to produce correctly-named evidence would have produced evidence named after whatever ran
+before it. No global `label` exists in this file (grepped: the only occurrences are inside
+`shot()` and in two comments), so the failure mode here is the loud one — but it is one keyword
+away from the quiet one.
+
+Fix: split the declaration in two, so `$label` is only expanded after `label` is assigned.
+
+The consequence that matters for what is already claimed: **this line was introduced by the fix
+for the truncated-frame bug**, the fourth bug in the file's own header ("shot() now waits for the
+size to settle and checks the converter's exit status"). That fix therefore never ran. Run M's 74
+frames were taken by the pre-fix body, which is consistent with run M's log having exactly
+2 MISSING frames and no settle behaviour in it — and it means the header's claim that the four
+bugs were "all found by running it" was true of the finding and not of the fixing. Three of the
+four were exercised by that run; the fourth was written, and wrote a bug.
+
+Re-run after the fix, same case B parameters (2026-11-01T18:36:56Z):
+
+    exit: 0
+    unbound-variable lines: 0
+    #### guardtest-fresh start 2026-11-01T21:36:57+03:00 mode=bios iso=/tmp/guardtest2.112948/dummy.iso
+    #### image sha256 a2bebcd1c1608b6cba78b1e777d61312725cddf6d88d42a1704fa4741437de47
+    2026-11-01T21:37:07+03:00 info kvm -> … kvm support: enabled
+    2026-11-01T21:37:07+03:00 info status -> … VM status: running
+    2026-11-01T21:37:32+03:00 menu dismissed (sendkey ret)
+    2026-11-01T21:37:38+03:00 frame wake md5=eec64c2d dims=720 400
+    2026-11-01T21:37:39+03:00 frame end md5=d627d837 dims=720 400
+    2026-11-01T21:37:39+03:00 commands sent: 0
+    #### 2026-11-01T21:37:42+03:00 done guardtest-fresh
+
+  files left: guardtest-fresh.log (1163 B), -wake.png (5732), -end.png (5724),
+              -wake.ppm (864015), -end.ppm (864015), .artifacts-sha256.txt (181), qemu.err (0)
+
+`shot()` executed, named both frames correctly, logged an md5 and dimensions for each, and
+produced two complete 864015-byte PPMs. QEMU 10.0.13 booted a text file as far as it could and
+gave a 720x400 no-boot-device screen, which is the expected result for a dummy image.
+
+=== what this does not claim ===
+The settle loop has now run, but not against the condition it was written for. Run M's truncated
+frames were 1280x800, i.e. 3072016-byte PPMs written while the guest was busy; this test produced
+720x400 PPMs of 864015 bytes from a guest that was doing nothing. Two complete small frames show
+the loop terminates and the naming is right. They do not show it catches a half-written large one.
+Run N's boot test is what exercises that — 26 commands, 1280x800, and a desktop starting under
+them — and if it produces MISSING or CONVERT-FAILED lines the loop is still not enough.
+
+=== what run N's boot test must therefore do differently ===
+Use a name that has not been used: `--run M1-boot-runN`. Not `M1-boot`, which is run M's and is
+the evidence `logs/M1-no-live-user.txt` cites. The frames then land as `M1-boot-runN-*.png`, which
+also cannot overwrite `logs/evidence/M1-boot-*.png` when they are copied in. The guard now makes
+the mistake fail loudly instead of quietly, but the guard is the last line, not the plan.
+
+=== this check is not a registered test, and that is a known gap ===
+`scripts/run-tests.sh` registers two tests and neither covers `harness/boot-test.sh`. What is
+above was run by hand and logged, which satisfies §11's "a run and a log" but not its registration
+rule in spirit: the guard can regress and nothing would notice. Promoting it means a third test
+file whose case B needs qemu on the host (cases A and C do not, since the guard fires before qemu
+starts, so a qemu-free version could cover the protective branch and the override branch only).
+Not written during the M1 close, because run N is the thing that has to land and the boot test
+below exercises the same file for real. Recorded here so the gap is a decision rather than an
+omission.

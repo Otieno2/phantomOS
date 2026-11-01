@@ -1,0 +1,21 @@
+#### RUN G start 2026-10-30T18:48:46+03:00
+2026-10-30T18:48:57+03:00 qemu started, accel: QEMU 10.0.13 monitor - type 'help' for more information (qemu) i[K[Din[K[D[Dinf[K[D[D[Dinfo[K[D[D[D[Dinfo [K[D[D[D[D[Dinfo a[K[D[D[D[D[D[Dinfo ac[K[D[D[D[D[D[D[Dinfo acc[K[D[D[D[D[D[D[D[Dinfo acce[K[D[D[D[D[D[D[D[D[Dinfo accel[K[D[D[D[D[D[D[D[D[D[Dinfo accele[K[D[D[D[D[D[D[D[D[D[D[Dinfo acceler[K[D[D[D[D[D[D[D[D[D[D[D[Dinfo accelera[K[D[D[D[D[D[D[D[D[D[D[D[D[Dinfo accelerat[K[D[D[D[D[D[D[D[D[D[D[D[D[D[Dinfo accelerato[K[D[D[D[D[D[D[D[D[D[D[D[D[D[D[Dinfo accelerator[K[D[D[D[D[D[D[D[D[D[D[D[D[D[D[D[Dinfo accelerators[K unknown command: 'info accelerators' (qemu) 
+2026-10-30T18:49:06+03:00 frame G-00-menu 71d8984d
+2026-10-30T18:49:07+03:00 enter reply: QEMU 10.0.13 monitor - type 'help' for more information (qemu) s[K[Dse[K[D[Dsen[K[D[D[Dsend[K[D[D[D[Dsendk[K[D[D[D[D[Dsendke[K[D[D[D[D[D[Dsendkey[K[D[D[D[D[D[D[Dsendkey [K[D[D[D[D[D[D[D[Dsendkey r[K[D[D[D[D[D[D[D[D[Dsendkey re[K[D[D[D[D[D[D[D[D[D[Dsendkey ret[K (qemu) 
+2026-10-30T18:49:27+03:00 frame G-boot-20 ab91d993
+2026-10-30T18:49:47+03:00 frame G-boot-40 ab91d993
+2026-10-30T18:50:08+03:00 frame G-boot-60 24a08288
+2026-10-30T18:50:28+03:00 frame G-boot-80 fa98518c
+2026-10-30T18:50:48+03:00 frame G-boot-100 24a08288
+2026-10-30T18:51:09+03:00 frame G-boot-120 368d8220
+2026-10-30T18:51:09+03:00 nudging console
+2026-10-30T18:51:15+03:00 frame G-10-after-nudge 288878ff
+2026-10-30T18:51:20+03:00 frame G-11-user 368d8220
+2026-10-30T18:51:27+03:00 frame G-12-logged-in 368d8220
+2026-10-30T18:51:36+03:00 frame G-13-osrelease 76ec6119
+2026-10-30T18:51:42+03:00 frame G-13b-uname 76ec6119
+2026-10-30T18:51:47+03:00 frame G-13c-findmnt 76ec6119
+2026-10-30T18:51:54+03:00 frame G-13d-cmdline 76ec6119
+2026-10-30T18:51:57+03:00 frame G-13e-id 051601f3
+2026-10-30T18:52:05+03:00 frame G-15-end 18fb83bc
+#### RUN G done 2026-10-30T18:52:08+03:00

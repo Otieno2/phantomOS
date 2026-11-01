@@ -1,0 +1,28 @@
+user
+live
+cat /etc/os-release
+uname -a
+dpkg -l | wc -l
+apt-mark showmanual | wc -l
+dpkg -l phantomos-desktop
+dpkg -l phantomos-base phantomos-release phantomos-config
+cat /etc/apt/sources.list
+ls /etc/apt/sources.list.d/
+ls /etc/apt/trusted.gpg.d/
+ls /usr/share/keyrings/
+ls / | head -30
+ls /opt /var/tmp
+mount | grep -i phantomos
+dpkg -l linux-image-amd64 firmware-linux-free firmware-ath9k-htc firmware-carl9170 wireless-regdb alsa-topology-conf
+dpkg -l indi-dsi
+ls -l /lib/firmware/regulatory.db /usr/lib/firmware/regulatory.db*
+dpkg -S /lib/firmware/regulatory.db /usr/lib/firmware/regulatory.db
+ls /usr/lib/firmware/skl_hda_dsp_generic-tplg.bin
+ls /lib/firmware | wc -l
+modinfo iwlwifi
+apt-cache policy phantomos-base
+cat /etc/apt/apt.conf.d/00recommends
+id
+who
+systemctl is-enabled lightdm
+echo M1-EVIDENCE-END

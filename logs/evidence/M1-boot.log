@@ -1,0 +1,46 @@
+#### M1-boot start 2026-11-01T19:42:38+03:00 mode=bios iso=/root/phantomos-m1/artifacts/2026-11-01T140727Z/live-image-amd64.hybrid.iso
+#### image sha256 f256cefc66d9ab31031501469080bbe154b16e7844453ac6e108221a4d69a2a5  /root/phantomos-m1/artifacts/2026-11-01T140727Z/live-image-amd64.hybrid.iso
+2026-11-01T19:43:19+03:00 info kvm -> QEMU 10.0.13 monitor - type 'help' for more information (qemu) i[K[Din[K[D[Dinf[K[D[D[Dinfo[K[D[D[D[Dinfo [K[D[D[D[D[Dinfo k[K[D[D[D[D[D[Dinfo kv[K[D[D[D[D[D[D[Dinfo kvm[K kvm support: enabled (qemu) 
+2026-11-01T19:43:22+03:00 info status -> QEMU 10.0.13 monitor - type 'help' for more information (qemu) i[K[Din[K[D[Dinf[K[D[D[Dinfo[K[D[D[D[Dinfo [K[D[D[D[D[Dinfo s[K[D[D[D[D[D[Dinfo st[K[D[D[D[D[D[D[Dinfo sta[K[D[D[D[D[D[D[D[Dinfo stat[K[D[D[D[D[D[D[D[D[Dinfo statu[K[D[D[D[D[D[D[D[D[D[Dinfo status[K VM status: running (qemu) 
+2026-11-01T19:43:47+03:00 menu dismissed (sendkey ret)
+2026-11-01T19:44:50+03:00 frame boot-85 md5=76ec6119 dims=1280 800
+2026-11-01T19:45:53+03:00 frame boot-145 md5=df04b0bf dims=1280 800
+2026-11-01T19:46:54+03:00 frame boot-205 md5=32aa38e2 dims=1280 800
+2026-11-01T19:47:56+03:00 frame boot-265 md5=1849092a dims=1280 800
+2026-11-01T19:48:33+03:00 frame boot-300 md5=27bd0575 dims=1280 800
+2026-11-01T19:48:39+03:00 frame wake md5=9f97b372 dims=1280 800
+2026-11-01T19:48:39+03:00 sent key ctrl-alt-f2
+2026-11-01T19:48:45+03:00 frame cmd-1 md5=ae233910 dims=1280 800
+2026-11-01T19:48:53+03:00 frame cmd-2 md5=ae233910 dims=1280 800
+2026-11-01T19:49:06+03:00 frame cmd-3 md5=ae233910 dims=1280 800
+2026-11-01T19:49:13+03:00 frame cmd-4 md5=4e482c7b dims=1280 800
+2026-11-01T19:49:24+03:00 frame cmd-5 md5=ae233910 dims=1280 800
+2026-11-01T19:49:36+03:00 frame cmd-6 md5=f2c45475 dims=1280 800
+2026-11-01T19:49:46+03:00 frame cmd-7 md5=fe81e209 dims=1280 800
+2026-11-01T19:50:04+03:00 frame cmd-8 md5=ae233910 dims=1280 800
+2026-11-01T19:50:16+03:00 frame cmd-9 md5=ae233910 dims=1280 800
+2026-11-01T19:50:28+03:00 frame cmd-10 md5=7d3aadc0 dims=1280 800
+2026-11-01T19:50:48+03:00 frame cmd-11 md5=7bd79ffd dims=1280 800
+2026-11-01T19:51:07+03:00 frame cmd-12 md5=ae233910 dims=1280 800
+2026-11-01T19:51:15+03:00 frame cmd-13 md5=0f3d56a2 dims=1280 800
+2026-11-01T19:51:28+03:00 frame cmd-14 md5=c4289c52 dims=1280 800
+2026-11-01T19:51:39+03:00 frame cmd-15 md5=7d3aadc0 dims=1280 800
+2026-11-01T19:52:15+03:00 frame cmd-16 md5=7e603de8 dims=1280 800
+2026-11-01T19:52:25+03:00 frame cmd-17 md5=65f8f245 dims=1280 800
+2026-11-01T19:52:52+03:00 frame cmd-18 md5=d8770757 dims=1280 800
+2026-11-01T19:53:12+03:00 frame cmd-19 md5=7d3aadc0 dims=1280 800
+2026-11-01T19:53:26+03:00 frame cmd-20 md5=fc7a5c72 dims=1280 800
+2026-11-01T19:53:35+03:00 frame cmd-21 md5=ae233910 dims=1280 800
+2026-11-01T19:53:43+03:00 frame cmd-22 MISSING
+2026-11-01T19:53:56+03:00 frame cmd-23 md5=7d3aadc0 dims=1280 800
+2026-11-01T19:54:09+03:00 frame cmd-24 md5=68e73b02 dims=1280 800
+2026-11-01T19:54:15+03:00 frame cmd-25 MISSING
+2026-11-01T19:54:21+03:00 frame cmd-26 md5=7d3aadc0 dims=1280 800
+2026-11-01T19:54:38+03:00 frame cmd-27 md5=ae233910 dims=1280 800
+2026-11-01T19:54:47+03:00 frame cmd-28 md5=ae233910 dims=1280 800
+2026-11-01T19:54:48+03:00 frame end md5=ae233910 dims=1280 800
+2026-11-01T19:54:48+03:00 commands sent: 28
+#### 2026-11-01T19:54:51+03:00 done M1-boot
+#### post-run 2026-11-01T19:58:56+03:00: 12 frames were reconverted from their PPMs after pnmtopng wrote empty
+#### post-run output during the run; the PPM md5s above are the run-time values and the PPMs
+#### post-run were never touched. Root cause not established; harness now checks the rc.

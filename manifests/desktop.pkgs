@@ -1,0 +1,76 @@
+# phantomos-desktop — the explicit graphical selection.
+#
+# Derived from docs/SPEC.md §5 (the desktop paragraph and the "inventory tail"
+# table) on 2026-10-30. §5 wins on conflict.
+# Format: one package name per line; '#' starts a comment; blank lines ignored.
+#
+# Name substitutions, because §5 writes some of these informally:
+#   "nm-applet"       -> network-manager-applet  (network-manager-gnome is only a
+#                        metapackage for this plus nm-connection-editor, and §5
+#                        names the applet, not the editor)
+#   "network-manager" -> network-manager
+#   "xfce4 + panel/thunar/power-manager" -> the xfce4 metapackage, which Depends on
+#                        xfce4-panel and thunar; xfce4-power-manager is only a
+#                        *Suggests* of xfce4, so it is named here explicitly.
+
+# Desktop shell. xfce4-goodies is deliberately NOT installed — §5's tail takes
+# eleven packages from its Depends list and drops nineteen; see manifests/drops.pkgs.
+xfce4
+xfce4-terminal
+xfce4-whiskermenu-plugin
+xfce4-notifyd
+xfce4-power-manager
+xfce4-battery-plugin
+xfce4-screenshooter
+xfce4-taskmanager
+xfce4-genmon-plugin
+
+# Session and display
+lightdm
+light-locker
+# The X server. Load-bearing, not decoration: it is a hard Depends of phantomos-desktop, and
+# every other route to one in trixie is a Recommends, which --apt-recommends false turns off
+# (lightdm Recommends xserver-xorg, xfce4 Recommends xorg, xinit Recommends xserver-xorg).
+# lightdm's own Depends names no X server at all. Measured 2026-11-01 — of the eight packages
+# in the whole archive that hard-depend on xserver-xorg or xorg, exactly one is in the image
+# and it is this one. §5 named it as of the 2026-11-01 amendment; before that this line had
+# no §5 basis, which the M1 diff cannot see (logs/M1-xorg-ownership.txt).
+xorg
+
+# Panel apps §7.2's three-capsule mock needs
+rofi
+plank                         # provisional: §12 item 8 is undecided; plank is the
+                              # closer match to the mock, so it is what the M1
+                              # manifest carries. Re-run the diff if M2 picks
+                              # xfce4-docklike-plugin instead.
+thunar-archive-plugin
+
+# Audio. §5 names "pipewire + pavucontrol"; a session with nothing speaking the
+# PulseAudio or the PipeWire protocol has no sound, so pipewire-pulse and
+# wireplumber are named too — recorded as a §5 gap in §9's M1 findings.
+# pavucontrol is safe to name: its Recommends are (pulseaudio | pipewire-pulse), and
+# with Recommends off (live/auto/config) it cannot drag the real PulseAudio daemon in.
+pipewire
+pipewire-pulse
+wireplumber
+pavucontrol
+
+# Network
+network-manager
+network-manager-applet
+
+# Applications §5 names
+firefox-esr
+mpv
+ristretto
+mousepad
+
+# Development environment (§5: the image ships dev tools, no office, no mail)
+git
+build-essential
+python3-venv
+
+# Identity fonts (§5 tail)
+fonts-inter
+fonts-montserrat
+fonts-jetbrains-mono

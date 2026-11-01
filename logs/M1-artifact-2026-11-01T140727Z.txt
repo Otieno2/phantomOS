@@ -1,0 +1,4 @@
+run: 2026-11-01T140727Z .. 2026-11-01T155206Z (lb build exit 0)
+path: /root/phantomos-m1/artifacts/2026-11-01T140727Z/live-image-amd64.hybrid.iso
+size: 908066816 bytes
+sha256: f256cefc66d9ab31031501469080bbe154b16e7844453ac6e108221a4d69a2a5

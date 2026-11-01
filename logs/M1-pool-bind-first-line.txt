@@ -1,0 +1,95 @@
+M1 — why the deb line has to be the FIRST line of an archives .list.chroot
+==========================================================================
+Run 2026-10-30, WSL Debian as root. Two scripts, both re-runnable, raw output kept beside
+this file:
+
+  M1-pool-bind-first-line-extractor.txt  the upstream extractor, applied to both shapes of
+                                         live/config/archives/phantomos.list.chroot, plus a
+                                         negative control against scripts/build-packages.sh
+  M1-pool-bind-first-line-unit.txt       live-build's Chroot_try_bind_path_from_list called
+                                         directly, unchanged, against a throwaway chroot
+                                         directory for each shape
+  M1-lb-build-first-line.log             the build this cost: 731 lines, started
+                                         [2026-10-30 22:12:22] local, died in
+                                         lb chroot_archives chroot install
+
+What was believed before this run
+---------------------------------
+The pool-ordering fix (§9.1) moved the pool from config/includes.chroot_before_packages/ to
+config/archives/*.list.chroot because chroot_prep runs the archives stage before the includes
+stage. After that change the first line of the file was still a comment — the file was
+written as documentation with the deb line at the end — and the build failed the same way it
+had for the wrong reason:
+
+  709:[2026-10-30 22:22:38] lb chroot_archives chroot install
+  711:Ign:1 file:/var/tmp/phantomos-build/pool ./ InRelease
+  712:Err:2 file:/var/tmp/phantomos-build/pool ./ Release
+  713:  File not found - /var/tmp/phantomos-build/pool/./Release (2: No such file or directory)
+  726:E: The repository 'file:/var/tmp/phantomos-build/pool ./ Release' does not have a Release file.
+  727:E: An unexpected failure occurred, exiting...
+
+Nothing in that output says "your comment is in the wrong place", and there is no
+`I: Binding local repository path` line to notice is missing, because the binding is not
+done by apt reading the file. apt is handed the file with its comments intact
+(/usr/lib/live/build/chroot_archives:62-66 runs sed over ${FILE} into
+chroot/etc/apt/sources.list.d/, so apt *does* see the deb line — which is why the error names
+the repository at all). The mount decision is made separately, by live-build's own parser,
+and that parser reads one line:
+
+  /usr/share/live/build/functions/chroot_bind_path.sh:63-72
+      Chroot_try_bind_path_from_list ()
+      {
+          ...
+          URI=$(sed --regexp-extended -e 's/.*(file:\/\/[^ ]+).*/\1/' ${FILE} | head -1)
+          Chroot_try_bind_path ${CHROOT} ${URI}
+      }
+
+`head -1` sits after the sed, and sed without a `/p` flag passes non-matching lines through
+unchanged, so the value of URI is "whatever line 1 of the file is". The comment block made
+URI the opening sentence of a paragraph. Chroot_try_bind_path:24 then tests
+`^file://(localhost)?/` against that sentence, fails, and returns 0 without doing anything.
+A silent no-op, and the same function is called with the same file for the unbind at the end
+of the stage, so the failure is symmetric and leaves no trace.
+
+Measured, not reasoned about
+----------------------------
+1. The extractor on the two shapes (extractor.txt, section 3):
+
+   old shape, first line "# PhantomOS's own metapackage pool, on the build host at this
+   absolute path. live-build" -> URI = that sentence
+   new shape, first line "deb file:///var/tmp/phantomos-build/pool ./"
+                              -> URI = file:///var/tmp/phantomos-build/pool
+
+2. The function itself, called the way live-build calls it, against /tmp/fakechroot-{old,new}
+   (unit.txt). Old shape: return 0, no mount, no directory created, nothing visible.
+   New shape: /proc/mounts gains
+
+     /dev/sdd /tmp/fakechroot-new/var/tmp/phantomos-build/pool ext4 rw,relatime,...
+
+   and the throwaway chroot sees 9 entries including InRelease and the .debs. The test
+   unmounted again and refused to rm -rf while anything was still mounted, because deleting
+   through a bind removes the pool at its own source (logs/M1-pool-uri.txt).
+   (Echo_message: command not found in that output is the test's fault, not the toolchain's:
+   the function file was sourced without live-build's common.sh. It is printed before the
+   mount and does not change the result.)
+
+3. The contract check, negative control (extractor.txt, section 5): scripts/build-packages.sh
+   now runs live-build's own extractor against the archives file rather than grepping for a
+   deb line anywhere in it, and refuses to sign a pool that would not be mounted. Run against
+   the old shape it exits 1 with the sentence the extractor actually read; run against the
+   committed file it passes. It aborts before the rm -rf, so a rejected file cannot destroy a
+   good pool.
+
+Why the check reads line 1 and not "somewhere in the file"
+----------------------------------------------------------
+`grep -qx "deb file://$POOL ./"` would have accepted the file that broke this build. The
+failure was not a wrong URI, it was a right URI on the wrong line, and only a check shaped
+like the tool's own behaviour can catch that. Both the extractor result and the literal first
+line are asserted, because the second one names the mistake in the message a future maintainer
+reads.
+
+Consequence for the tree
+------------------------
+The comments moved below the deb line in live/config/archives/phantomos.list.chroot; that file
+is now a working file whose documentation comes second, and the reason is a line of upstream
+source rather than a style preference. §9.1 records this as the second of the two pool failures.

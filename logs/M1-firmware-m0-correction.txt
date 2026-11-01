@@ -1,0 +1,34 @@
+=== correction to logs/M1-firmware-areas.txt line 26 ('firmware packages M0 actually shipped') ===
+That list was produced by matching names beginning with 'firmware-'. The right question is which
+packages carrying a lib/firmware path were installed, so it is measured on the 'Setting up' lines
+each build log emits (dpkg's own record of a package becoming configured), for the six names
+live-build's Contents enumeration yields against trixie main.
+
+package                        M0       M1
+alsa-topology-conf              1        1
+firmware-ath9k-htc              1        1
+firmware-carl9170               1        1
+firmware-linux-free             1        1
+indi-dsi                        1        1
+wireless-regdb                  1        1
+linux-image-amd64               1        1
+
+M0 'Setting up' lines mentioning a path under /lib/firmware, as the log shows them:
+  2407:update-alternatives: using /lib/firmware/regulatory.db-debian to provide /lib/firmware/regulatory.db (regulatory.db) in auto mode
+
+=== the same for our build: which of the six are in the image's installed set ===
+  alsa-topology-conf       1
+  firmware-ath9k-htc       1
+  firmware-carl9170        1
+  firmware-linux-free      1
+  indi-dsi                 1
+  wireless-regdb           1
+  linux-image-amd64        1
+  selections (manual):
+  alsa-topology-conf       1
+  firmware-ath9k-htc       1
+  firmware-carl9170        1
+  firmware-linux-free      1
+  indi-dsi                 1
+  wireless-regdb           1
+  linux-image-amd64        1

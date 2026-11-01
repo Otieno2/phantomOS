@@ -1,0 +1,49 @@
+M1 — pool signature negative controls (run 2026-11-01T17:47:50Z, WSL Debian as root)
+
+pool under test : /opt/phantomos-build/pool
+pinned keyring  : dearmored live/config/archives/phantomos.key.chroot
+                  fingerprint 366B8D046A9E55F676F8B81C579EA1F72B8507E6
+impostor key    : generated for this run, fingerprint 08BF46FD4278B6BD4879D1C483A0899A5E0C2596
+                  (GNUPGHOME=/tmp/phantomos-pool-sigtest/other-gnupg, %no-protection RSA 2048+2048)
+
+=== A. signed by the build key, pinned to that key
+    pool     : /opt/phantomos-build/pool
+    deb line : deb [signed-by=/tmp/phantomos-pool-sigtest/keyrings/phantomos.gpg] file:///opt/phantomos-build/pool ./
+    apt-get update exit : 0
+      | Get:1 file:/opt/phantomos-build/pool ./ InRelease [1,954 B]
+      | Get:2 file:/opt/phantomos-build/pool ./ Packages [1,956 B]
+    candidate phantomos-base    : 0.1.0-1
+    candidate phantomos-desktop : 0.1.0-1
+
+    re-signed with the impostor: InRelease 07cc6270297e0adad13688bdb58fc4fa -> cea9be2d564abfc6632a562f00b9c43e
+    (identical bytes would mean the signing never happened and case B tested nothing)
+
+=== B. same package bytes, signed by a DIFFERENT key, keyring unchanged
+    pool     : /tmp/phantomos-pool-sigtest/resigned
+    deb line : deb [signed-by=/tmp/phantomos-pool-sigtest/keyrings/phantomos.gpg] file:///tmp/phantomos-pool-sigtest/resigned ./
+    apt-get update exit : 100
+      | Err:1 file:/tmp/phantomos-pool-sigtest/resigned ./ InRelease
+      | E: The repository 'file:/tmp/phantomos-pool-sigtest/resigned ./ InRelease' is not signed.
+      | Get:1 file:/tmp/phantomos-pool-sigtest/resigned ./ InRelease [1,779 B]
+      |   Sub-process /usr/bin/sqv returned an error code (1), error message is: Missing key 36DFBA23642F24ADA4EBF50A63570E5C6D7BC218, which is needed to verify signature.
+      | W: OpenPGP signature verification failed: file:/tmp/phantomos-pool-sigtest/resigned ./ InRelease: Sub-process /usr/bin/sqv returned an error code (1), error message is: Missing key 36DFBA23642F24ADA4EBF50A63570E5C6D7BC218, which is needed to verify signature.
+    candidate phantomos-base    : 
+    candidate phantomos-desktop : 
+
+=== C. unsigned (InRelease and Release.gpg removed)
+    pool     : /tmp/phantomos-pool-sigtest/unsigned
+    deb line : deb [signed-by=/tmp/phantomos-pool-sigtest/keyrings/phantomos.gpg] file:///tmp/phantomos-pool-sigtest/unsigned ./
+    apt-get update exit : 100
+      | E: The repository 'file:/tmp/phantomos-pool-sigtest/unsigned ./ Release' is not signed.
+      | Get:2 file:/tmp/phantomos-pool-sigtest/unsigned ./ Release [1,222 B]
+      | Ign:1 file:/tmp/phantomos-pool-sigtest/unsigned ./ InRelease
+      | Ign:3 file:/tmp/phantomos-pool-sigtest/unsigned ./ Release.gpg
+    candidate phantomos-base    : 
+    candidate phantomos-desktop : 
+
+=== read of the three ===
+A accepted with a candidate for both metapackages; B and C both exit 100 and leave
+phantomos-base with no candidate, so nothing from an unverifiable pool can be selected.
+No case used [trusted=yes]: trust came only from the signed-by keyring.
+Not covered: a tampered .deb whose hash no longer matches Packages — that fails at download,
+not at update, and has not been run.

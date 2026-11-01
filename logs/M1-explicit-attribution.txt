@@ -1,0 +1,104 @@
+=== 0. is there an apt history inside the image? ===
+squashfs-root
+squashfs-root/var
+squashfs-root/var/log
+squashfs-root/var/log/apt
+squashfs-root/var/log/apt/eipp.log.xz
+squashfs-root/var/log/apt/history.log
+squashfs-root/var/log/apt/term.log
+
+[===================================================================|] 3/3 100%
+/tmp/tmp.oDyFEzmnpw/root/var/log/apt/term.log  0 lines
+/tmp/tmp.oDyFEzmnpw/root/var/log/apt/history.log  0 lines
+/tmp/tmp.oDyFEzmnpw/root/var/log/apt/eipp.log.xz  0 lines
+
+=== 1. every Install: stanza in the history that names one of the seven ===
+--- /tmp/tmp.oDyFEzmnpw/root/var/log/apt/history.log
+
+=== 2. per name: exact apt attribution (automatic flag) from the Install: lines ===
+
+=== 3. which Commandline: put them there (the batch, verbatim, truncated) ===
+
+=== 4. reverse depends from the apt indices the chroot used ===
+auxfiles
+deb.debian.org_debian_dists_trixie_InRelease
+deb.debian.org_debian_dists_trixie_main_binary-amd64_Packages
+deb.debian.org_debian_dists_trixie_main_i18n_Translation-en
+deb.debian.org_debian_dists_trixie_main_source_Sources
+deb.debian.org_debian_dists_trixie-updates_InRelease
+deb.debian.org_debian_dists_trixie-updates_main_binary-amd64_Packages
+deb.debian.org_debian_dists_trixie-updates_main_i18n_Translation-en
+deb.debian.org_debian_dists_trixie-updates_main_source_Sources
+lock
+_opt_phantomos-build_pool_._InRelease
+_opt_phantomos-build_pool_._Packages
+partial
+security.debian.org_dists_trixie-security_InRelease
+security.debian.org_dists_trixie-security_main_binary-amd64_Packages
+security.debian.org_dists_trixie-security_main_i18n_Translation-en
+security.debian.org_dists_trixie-security_main_source_Sources
+  --- pulled by (mentioning alsa-topology-conf):
+        libasound2-data: alsa-ucm-conf, alsa-topology-conf
+  --- pulled by (mentioning firmware-ath9k-htc):
+        fbx-all: acl, apt-transport-tor, bepasty, bigbluebutton, bind9, calibre, clamav, cockpit-pcp, coturn, cups, dbconfig-pgsql, deluge-web, deluged, diaspora, dovecot, easy-rsa, ejabberd, firmware-ath9k-htc, gitlab, gitweb, haveged, highlight, homeassistant, i2p, ikiwiki, imagemagick, infinoted, jitsi, libdigest-sha-perl, libimage-magick-perl, libsearch-xapian-perl, libxml-writer-perl, mastodon, matrix-synapse, matrix-synapse-ldap3, mediawiki, minetest-mod-character-creator, minetest-mod-craftguide, minetest-mod-infinite-chest, minetest-mod-lucky-block, minetest-mod-maidroid, minetest-mod-mesecons, minetest-mod-moreblocks, minetest-mod-moreores, minetest-mod-nether, minetest-mod-pipeworks, minetest-mod-player-3d-armor, minetest-mod-protector, minetest-mod-quartz, minetest-mod-skyblock, minetest-mod-throwing, minetest-mod-unified-inventory, minetest-mod-unifieddyes, minetest-mod-worldedit, minetest-server, minidlna, mldonkey-server, monkeysphere, mumble-server, mumble-web, nextcloud, obfs4proxy, openvpn, pagekite, php-pgsql, php-sqlite3, pleroma, postfix, postgresql, privoxy, python3-psycopg2, quassel-core, radicale, roundcube, roundcube-sqlite3, rspamd, samba, searx, shaarli, shadowsocks-libev, sogo, sqlite3, syncthing, tahoe-lafs, tor, tor-geoipdb, torsocks, transmission-daemon, tt-rss, uwsgi, uwsgi-plugin-python3, wireguard, wordpress, xapian-omega
+        firmware-linux-free: firmware-carl9170, firmware-ath9k-htc
+        freedombox: e2fsprogs, firmware-ath9k-htc, freedombox-doc-en, freedombox-doc-es, libnss-mdns, libnss-myhostname, libpam-abl, locales, locales-all, openssh-client, powermgmt-base, psmisc
+        live-task-recommended: cups, dbus, dkms, extrepo, file, firmware-ath9k-htc, firmware-linux-free, hw-probe, less, lsof, lvm2, mdadm, netutils, openssh-client, psmisc, time, xfsprogs
+  --- pulled by (mentioning firmware-carl9170):
+        firmware-linux-free: firmware-carl9170, firmware-ath9k-htc
+  --- pulled by (mentioning firmware-linux-free):
+        linux-image-6.12.107+deb13-amd64-unsigned: firmware-linux-free, linux-doc-6.12, debian-kernel-handbook, grub-pc 
+        linux-image-6.12.107+deb13-cloud-amd64-unsigned: firmware-linux-free, linux-doc-6.12, debian-kernel-handbook, grub-pc 
+        linux-image-6.12.107+deb13-rt-amd64-unsigned: firmware-linux-free, linux-doc-6.12, debian-kernel-handbook, grub-pc 
+        linux-image-6.12.94+deb13-amd64-unsigned: firmware-linux-free, linux-doc-6.12, debian-kernel-handbook, grub-pc 
+        linux-image-6.12.94+deb13-cloud-amd64-unsigned: firmware-linux-free, linux-doc-6.12, debian-kernel-handbook, grub-pc 
+        linux-image-6.12.94+deb13-rt-amd64-unsigned: firmware-linux-free, linux-doc-6.12, debian-kernel-handbook, grub-pc 
+        linux-image-6.12.107+deb13-amd64: firmware-linux-free, linux-doc-6.12, debian-kernel-handbook, grub-pc 
+        linux-image-6.12.107+deb13-cloud-amd64: firmware-linux-free, linux-doc-6.12, debian-kernel-handbook, grub-pc 
+        linux-image-6.12.107+deb13-rt-amd64: firmware-linux-free, linux-doc-6.12, debian-kernel-handbook, grub-pc 
+        linux-image-6.12.94+deb13-amd64: firmware-linux-free, linux-doc-6.12, debian-kernel-handbook, grub-pc 
+        linux-image-6.12.94+deb13-cloud-amd64: firmware-linux-free, linux-doc-6.12, debian-kernel-handbook, grub-pc 
+        linux-image-6.12.94+deb13-rt-amd64: firmware-linux-free, linux-doc-6.12, debian-kernel-handbook, grub-pc 
+  --- pulled by (mentioning indi-dsi):
+  --- pulled by (mentioning linux-image-amd64):
+        debian-cloud-images-packages: amazon-ec2-utils, apparmor, apt-listchanges, apt-utils, awscli, azure-vm-utils, bash-completion, bind9-host, ca-certificates, chrony, cloud-guest-utils, cloud-init, cloud-initramfs-growroot, curl, dosfstools, ethtool, grub-cloud-amd64, hyperv-daemons, iptables, iputils-ping, less, libnss-myhostname, libnss-resolve, libpam-systemd, linux-image-amd64, linux-image-cloud-amd64, linux-sysctl-defaults, man-db, manpages, nano, netbase, netplan.io, openssh-server, pciutils, polkitd, psmisc, reportbug, screen, socat, ssh-import-id, sudo, systemd-resolved, tcpdump, traceroute, unattended-upgrades, uuid-runtime, vim, vim-tiny, waagent, whiptail, xz-utils, zstd
+        debos: bmap-tools, bzip2, dosfstools, e2fsprogs, fdisk, linux-image-amd64, mount, ovmf, parted, udev, xz-utils, zip
+        fakemachine: e2fsprogs, linux-image-amd64, systemd-resolved
+        supermin: linux-image-amd64
+  --- pulled by (mentioning wireless-regdb):
+        iw: wireless-regdb
+        network-manager: ppp, dnsmasq-base, modemmanager, wireless-regdb, wpasupplicant, libpam-systemd, polkitd, udev, network-manager-l10n
+        reform-desktop-minimal: alsa-utils, apt, apt-file, apt-listbugs, apt-utils, bash-completion, brightness-udev, brightnessctl, bsdextrautils, busybox, ca-certificates, console-data, console-setup, cpio, cron, cryptsetup, cryptsetup-initramfs, curl, dbus-bin, debian-archive-keyring, debian-keyring, dhcpcd-base, dialog, dosfstools, e2fsprogs, elinks, fbset, fdisk, file, gnupg, gpiod, gpm, greetd, hdparm, htop, iproute2, iptables, iputils-ping, iw, kbd, less, lm-sensors, locales, lshw, lvm2, man-db, micro, nano, ncdu, ncurses-term, net-tools, netbase, netcat-openbsd, network-manager, nfacct, ntpsec, ntpsec-ntpdate, nvme-cli, openssh-client, parted, pciutils, picotool, pocket-reform-handbook, procps, python3-psutil, readline-common, reform-handbook, reform-tools, rfkill, rsync, sudo, systemd, systemd-sysv, telnet, tmux, traceroute, tuigreet, u-boot-tools, unzip, usbutils, vim, w3m, wavemon, wget, wireless-regdb, wpasupplicant, xdg-utils, zstd
+
+=== 5. live-build source: does it name these, or install with recommends? ===
+--- chroot_firmware install command
+18:DESCRIPTION="Schedule firmware packages for installation"
+29:Echo_message "Begin scheduling firmware installation..."
+50:# Include firmware packages
+52:# Get all firmware packages names
+56:# Manually add firmware-linux meta package if available
+57:if [ $(Check_package_available "firmware-linux") -eq 1 ]
+59:	FIRMWARE_PACKAGES="${FIRMWARE_PACKAGES} firmware-linux"
+88:touch chroot/root/packages.chroot
+93:	echo $(echo ${_PACKAGE} | awk -F/ '{ print $NF }') >> chroot/root/packages.chroot
+97:if grep --silent "^firmware-ivtv$" chroot/root/packages.chroot
+99:cat >> chroot/root/packages.chroot.cfg << EOF
+100:firmware-ivtv firmware-ivtv/license/accepted boolean true
+103:if grep --silent "^firmware-ipw2x00$" chroot/root/packages.chroot
+105:cat >> chroot/root/packages.chroot.cfg << EOF
+106:firmware-ipw2x00 firmware-ipw2x00/license/accepted boolean true
+--- chroot_linux-image install command
+18:DESCRIPTION="Schedule kernel packages for installation"
+24:if [ "${LB_LINUX_PACKAGES}" = "none" ]
+29:Echo_message "Begin scheduling kernel image installation..."
+47:for FLAVOUR in ${LB_LINUX_FLAVOURS_WITH_ARCH}
+49:	for PACKAGE in ${LB_LINUX_PACKAGES}
+--- APT_OPTIONS for these stages (functions) 
+/usr/share/live/build/functions/configuration.sh:120:	APT_OPTIONS="${APT_OPTIONS:---yes -o Acquire::Retries=5}"
+/usr/share/live/build/functions/configuration.sh:870:		# apt-config only understands --option (-o) and --config-file (-c) of ${APT_OPTIONS}
+/usr/share/live/build/functions/configuration.sh:872:		APT_CONFIG_OPTIONS=$(getopt --quiet --unquoted --options 'c:o:' --long 'config-file:,option:' -- ${APT_OPTIONS} || true)
+/usr/share/live/build/functions/init.sh:37:		APT_OPTIONS="${APT_OPTIONS} -o APT::Color=true"
+/usr/share/live/build/functions/init.sh:40:		APT_OPTIONS="${APT_OPTIONS} -o APT::Color=false"
+/usr/share/live/build/functions/packages.sh:56:			Chroot chroot "apt-get install -o APT::Install-Recommends=false ${APT_OPTIONS} ${_LB_PACKAGES}"
+/usr/share/live/build/functions/packages.sh:88:				Chroot chroot "apt-get remove --auto-remove --purge ${APT_OPTIONS} ${PACKAGES}"
+/usr/share/live/build/functions/wrapper.sh:19:			Chroot ${CHROOT} apt-get ${APT_OPTIONS} "${@}"

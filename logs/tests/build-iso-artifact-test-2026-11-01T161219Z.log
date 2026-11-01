@@ -1,0 +1,39 @@
+=== seed: a stray ISO from a run that died, plus a previous archive and a previous log ===
+  previous archive sha256 = 75c5b400734536d6f12a8e35288e5bcee017997b6182794b3bce63bd7ac3cf67
+
+=== run 1 ===
+  exit=127
+  FAIL  run 1 exits 0
+  FAIL  the stray ISO was moved out of live/, not deleted with it
+  PASS  the previous run's archive survived the rsync --delete
+  PASS  the previous run's log in $WORK/logs survived
+  FAIL  run 1 archived its ISO under artifacts/<START>/
+  FAIL  live/ is left with no ISO for the next run to trip over
+  FAIL  one artifact record was written into logs/
+grep: : No such file or directory
+stat: cannot statx '': No such file or directory
+grep: : No such file or directory
+  FAIL  the record's size line matches the archived file
+grep: : No such file or directory
+grep: : No such file or directory
+sha256sum: '': No such file or directory
+  PASS  the record's sha256 matches the archived file
+
+=== run 2 — the second invocation must not reach run 1's archive ===
+grep: : No such file or directory
+sha256sum: '': No such file or directory
+  exit=127
+  FAIL  run 2 exits 0
+sha256sum: '': No such file or directory
+  PASS  run 1's archived ISO is byte-identical after run 2
+  FAIL  run 2 wrote its own record, so two runs are two artifacts
+  FAIL  two archives exist side by side
+
+=== run 3 — lb build fails; a failed run must not look like a success ===
+  exit=127
+  PASS  run 3 exits non-zero, i.e. the failure is not swallowed
+  PASS  run 3 wrote no artifact record
+  FAIL  no record anywhere claims exit 0 for the failed run
+
+=== every file the three runs left in artifacts/ ===
+RESULT: 6 passed, 10 failed

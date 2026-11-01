@@ -1,0 +1,82 @@
+=== the image's own records (from binary/live/filesystem.squashfs) ===
+installed:                 838 packages
+  manual selections:       156
+  dependency closure:      682 (apt Auto-Installed: 1)
+expected selections:       191
+  of which bootstrap:      144 (cache/packages.bootstrap)
+  of which §5/live/ours:   49 (2 of these are in both buckets)
+
+cross-check against live-build's chroot.packages.live: identical
+
+=== direction 1: named by §5, not selected in the image ===
+  MISSING apparmor
+  MISSING apt-listchanges
+  MISSING build-essential
+  MISSING ca-certificates
+  MISSING cryptsetup
+  MISSING firefox-esr
+  MISSING flatpak
+  MISSING fonts-inter
+  MISSING fonts-jetbrains-mono
+  MISSING fonts-montserrat
+  MISSING git
+  MISSING lightdm
+  MISSING light-locker
+  MISSING lvm2
+  MISSING mousepad
+  MISSING mpv
+  MISSING network-manager
+  MISSING network-manager-applet
+  MISSING openssh-client
+  MISSING pavucontrol
+  MISSING phantomos-config
+  MISSING phantomos-release
+  MISSING pipewire
+  MISSING pipewire-pulse
+  MISSING plank
+  MISSING python3-venv
+  MISSING ristretto
+  MISSING rofi
+  MISSING sudo
+  MISSING thunar-archive-plugin
+  MISSING unattended-upgrades
+  MISSING wireplumber
+  MISSING xfce4
+  MISSING xfce4-battery-plugin
+  MISSING xfce4-genmon-plugin
+  MISSING xfce4-notifyd
+  MISSING xfce4-power-manager
+  MISSING xfce4-screenshooter
+  MISSING xfce4-taskmanager
+  MISSING xfce4-terminal
+  MISSING xfce4-whiskermenu-plugin
+  MISSING xorg
+
+=== direction 2: selected in the image, not named by §5 ===
+  EXTRA alsa-topology-conf
+  EXTRA firmware-ath9k-htc
+  EXTRA firmware-carl9170
+  EXTRA firmware-linux-free
+  EXTRA indi-dsi
+  EXTRA linux-image-amd64
+  EXTRA wireless-regdb
+
+=== guard: §5 drops present anyway ===
+(none)
+
+=== §8 guard: the build pool inside the image ===
+(none)
+
+channels the image ships with (/etc/apt/sources.list and sources.list.d inside it):
+  deb http://deb.debian.org/debian/ trixie main
+  deb-src http://deb.debian.org/debian/ trixie main
+  deb http://security.debian.org/ trixie-security main
+  deb-src http://security.debian.org/ trixie-security main
+  deb http://deb.debian.org/debian/ trixie-updates main
+  deb-src http://deb.debian.org/debian/ trixie-updates main
+
+build tree, not the image (left by the archives re-bind after the snapshot — see header):
+  chroot/opt/phantomos-build/pool
+  chroot/etc/apt/sources.list.d/phantomos.list
+
+M1 EXIT CRITERION: NOT MET (§5 diff not empty)

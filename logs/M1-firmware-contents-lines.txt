@@ -1,0 +1,96 @@
+=== 1. the Contents lines that put each name in the firmware list ===
+--- alsa-topology-conf
+      usr/lib/firmware/skl_hda_dsp_generic-tplg.bin           libs/alsa-topology-conf
+--- firmware-ath9k-htc
+      usr/lib/firmware/ath9k_htc/htc_7010-1.4.0.fw            misc/firmware-ath9k-htc
+      usr/lib/firmware/ath9k_htc/htc_9271-1.4.0.fw            misc/firmware-ath9k-htc
+--- firmware-carl9170
+      usr/lib/firmware/carl9170-1.fw                          kernel/firmware-carl9170
+--- firmware-linux-free
+      usr/lib/firmware/av7110/bootcode.bin                    kernel/firmware-linux-free
+      usr/lib/firmware/cis/3CCFEM556.cis                      kernel/firmware-linux-free
+      usr/lib/firmware/cis/3CXEM556.cis                       kernel/firmware-linux-free
+--- indi-dsi
+      usr/lib/firmware/meade-deepskyimager.hex                science/indi-dsi
+--- wireless-regdb
+      usr/lib/firmware/regulatory.db-debian                   net/wireless-regdb
+      usr/lib/firmware/regulatory.db-upstream                 net/wireless-regdb
+      usr/lib/firmware/regulatory.db.p7s-debian               net/wireless-regdb
+
+=== 2. Contents record format (first lines of the file) ===
+  bin                                                     admin/base-files
+  boot/System.map-6.12.107+deb13-amd64                    kernel/linux-image-6.12.107+deb13-amd64,kernel/linux-image-6.12.107+deb13-amd64-unsigned
+  boot/System.map-6.12.107+deb13-cloud-amd64              kernel/linux-image-6.12.107+deb13-cloud-amd64,kernel/linux-image-6.12.107+deb13-cloud-amd64-unsigned
+  boot/System.map-6.12.107+deb13-rt-amd64                 kernel/linux-image-6.12.107+deb13-rt-amd64,kernel/linux-image-6.12.107+deb13-rt-amd64-unsigned
+  boot/System.map-6.12.94+deb13-amd64                     kernel/linux-image-6.12.94+deb13-amd64,kernel/linux-image-6.12.94+deb13-amd64-unsigned
+  boot/System.map-6.12.94+deb13-cloud-amd64               kernel/linux-image-6.12.94+deb13-cloud-amd64,kernel/linux-image-6.12.94+deb13-cloud-amd64-unsigned
+  boot/System.map-6.12.94+deb13-rt-amd64                  kernel/linux-image-6.12.94+deb13-rt-amd64,kernel/linux-image-6.12.94+deb13-rt-amd64-unsigned
+  boot/config-6.12.107+deb13-amd64                        kernel/linux-image-6.12.107+deb13-amd64,kernel/linux-image-6.12.107+deb13-amd64-unsigned
+
+=== 3. the exact awk, and a per-name count of matched lib/firmware paths ===
+       24 kernel/firmware-linux-free
+        4 net/wireless-regdb
+        2 misc/firmware-ath9k-htc
+        1 science/indi-dsi
+        1 libs/alsa-topology-conf
+        1 kernel/firmware-carl9170
+
+=== 4. sizes of the six, from the .debs apt actually fetched ===
+  alsa-topology-conf          15276 bytes  alsa-topology-conf_1.2.5.1-3_all.deb
+  firmware-ath9k-htc          45040 bytes  firmware-ath9k-htc_1.4.0-110-ge888634+dfsg1-0.1_all.deb
+  firmware-carl9170           15336 bytes  firmware-carl9170_1.9.9-450-gad1c721+dfsg-0.1_all.deb
+  firmware-linux-free         17832 bytes  firmware-linux-free_20241210-2_all.deb
+  indi-dsi                    56624 bytes  indi-dsi_0.4+20221223123028-2_amd64.deb
+  wireless-regdb              12400 bytes  wireless-regdb_2026.05.30-1~deb13u1_all.deb
+
+=== 5. is firmware-linux available? (chroot_firmware adds it when it is) ===
+  deb.debian.org_debian_dists_trixie_main_binary-amd64_Packages firmware-linux: 0
+  deb.debian.org_debian_dists_trixie-updates_main_binary-amd64_Packages firmware-linux: 0
+  security.debian.org_dists_trixie-security_main_binary-amd64_Packages firmware-linux: 0
+
+=== 6. where LB_FIRMWARE_BINARY is read ===
+  /usr/lib/live/build/config:516:				LB_FIRMWARE_BINARY="${2}"
+  /usr/lib/live/build/config:1302:LB_FIRMWARE_BINARY="${LB_FIRMWARE_BINARY}"
+  /usr/lib/live/build/installer_debian-installer:497:	if [ "${LB_FIRMWARE_BINARY}" = "true" ]
+  /usr/share/live/build/functions/configuration.sh:489:	LB_FIRMWARE_BINARY="${LB_FIRMWARE_BINARY:-true}"
+  /usr/share/live/build/functions/configuration.sh:561:	if [ "${LB_FIRMWARE_BINARY}" != "true" ] && [ "${LB_FIRMWARE_BINARY}" != "false" ]; then
+  /usr/share/live/build/functions/configuration.sh:562:		Echo_error "Value for LB_FIRMWARE_BINARY (--firmware-binary) can only be 'true' or 'false'!"
+--- and LB_FIRMWARE_CHROOT
+  /usr/lib/live/build/config:521:				LB_FIRMWARE_CHROOT="${2}"
+  /usr/lib/live/build/config:1305:LB_FIRMWARE_CHROOT="${LB_FIRMWARE_CHROOT}"
+  /usr/lib/live/build/chroot_firmware:24:if [ "${LB_FIRMWARE_CHROOT}" != "true" ]
+  /usr/share/live/build/functions/configuration.sh:488:	LB_FIRMWARE_CHROOT="${LB_FIRMWARE_CHROOT:-true}"
+  /usr/share/live/build/functions/configuration.sh:565:	if [ "${LB_FIRMWARE_CHROOT}" != "true" ] && [ "${LB_FIRMWARE_CHROOT}" != "false" ]; then
+  /usr/share/live/build/functions/configuration.sh:566:		Echo_error "Value for LB_FIRMWARE_CHROOT (--firmware-chroot) can only be 'true' or 'false'!"
+
+=== 7. libasound2-data / alsa-ucm-conf: which field names alsa-topology-conf, and are they in the image? ===
+  libasound2-data | Recommends: alsa-ucm-conf, alsa-topology-conf
+  libasound2-data | Suggests: alsa-utils
+  libasound2-data | Multi-Arch: foreign
+  libasound2-data | Section: libs
+  libasound2t64 | Depends: libasound2-data (>= 1.2.14-1+deb13u1), libc6 (>= 2.38)
+  libasound2t64 | Suggests: libasound2-plugins (>= 1.0.24)
+  libasound2t64 | Multi-Arch: same
+  libasound2t64 | Section: libs
+  alsa-topology-conf | Multi-Arch: foreign
+  alsa-topology-conf | Section: libs
+  alsa-ucm-conf | Depends: libasound2t64
+  alsa-ucm-conf | Multi-Arch: foreign
+  alsa-ucm-conf | Section: libs
+[===================================================================|] 8/8 100%
+  image: alsa-ucm-conf          ABSENT
+  image: alsa-topology-conf     Status: install ok installed
+  image: libasound2-data        Status: install ok installed
+  image: libasound2t64          Status: install ok installed
+  image: iw                     ABSENT
+  image: wireless-regdb         Status: install ok installed
+  image: network-manager        Status: install ok installed
+--- auto-marked? (extended_states)
+awk: cannot open "/tmp/tmp.MbXPGZUYlq/img/var/lib/apt/extended_states" (No such file or directory)
+  alsa-ucm-conf          
+awk: cannot open "/tmp/tmp.MbXPGZUYlq/img/var/lib/apt/extended_states" (No such file or directory)
+  alsa-topology-conf     
+awk: cannot open "/tmp/tmp.MbXPGZUYlq/img/var/lib/apt/extended_states" (No such file or directory)
+  wireless-regdb         
+awk: cannot open "/tmp/tmp.MbXPGZUYlq/img/var/lib/apt/extended_states" (No such file or directory)
+  iw                     

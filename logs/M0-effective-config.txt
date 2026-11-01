@@ -1,0 +1,386 @@
+This is live-build version 20250505+deb13u1
+Installed version reported by dpkg is 1:20250505+deb13u1
+# config/common - common options for live-build(7)
+
+# Version of live-build used to build config (config format version)
+LB_CONFIGURATION_VERSION="20250505+deb13u1"
+
+# Set package manager
+LB_APT="apt"
+
+# Set proxy for HTTP connections
+LB_APT_HTTP_PROXY=""
+
+# Set apt/aptitude pipeline depth
+LB_APT_PIPELINE=""
+
+# Set apt/aptitude recommends
+LB_APT_RECOMMENDS="true"
+
+# Set apt/aptitude security
+LB_APT_SECURE="true"
+
+# Set apt/aptitude source entries in sources.list
+LB_APT_SOURCE_ARCHIVES="true"
+
+# Control cache
+LB_CACHE="true"
+
+# Control if downloaded package indices should be cached
+LB_CACHE_INDICES="false"
+
+# Control if downloaded packages files should be cached
+LB_CACHE_PACKAGES="true"
+
+# Control if completed stages should be cached
+LB_CACHE_STAGES="bootstrap"
+
+# Set debconf(1) frontend to use
+LB_DEBCONF_FRONTEND="noninteractive"
+
+# Set debconf(1) priority to use
+LB_DEBCONF_PRIORITY="critical"
+
+# Set initramfs hook
+LB_INITRAMFS="live-boot"
+
+# Set initramfs compression
+LB_INITRAMFS_COMPRESSION="gzip"
+
+# Set init system
+LB_INITSYSTEM="systemd"
+
+# Set distribution mode
+LB_MODE="debian"
+
+# Set system type
+LB_SYSTEM="live"
+
+# Set base name of the image
+LB_IMAGE_NAME="live-image"
+
+# Set options to use with apt
+APT_OPTIONS="--yes -o Acquire::Retries=5"
+
+# Set options to use with aptitude
+APTITUDE_OPTIONS="--assume-yes -o Acquire::Retries=5"
+
+# Set options to use with debootstrap
+DEBOOTSTRAP_OPTIONS=""
+
+# Set script to use with debootstrap
+DEBOOTSTRAP_SCRIPT=""
+
+# Set options to use with gzip
+GZIP_OPTIONS="-6 --rsyncable"
+
+# Enable UTC timestamps
+LB_UTC_TIME="false"
+
+# live-build options
+
+# Enable breakpoints
+# If set here, overrides the command line option
+#_BREAKPOINTS="false"
+
+# Enable debug
+# If set here, overrides the command line option
+#_DEBUG="false"
+
+# Enable color
+# If set here, overrides the command line option
+#_COLOR="auto"
+
+# Enable force
+# If set here, overrides the command line option
+#_FORCE="false"
+
+# Enable quiet
+# If set here, overrides the command line option
+#_QUIET="false"
+
+# Enable verbose
+# If set here, overrides the command line option
+#_VERBOSE="false"
+# config/bootstrap - options for live-build(7), bootstrap stage
+
+# Select architecture to use
+LB_ARCHITECTURE="amd64"
+
+# Select distribution to use
+LB_DISTRIBUTION="trixie"
+
+# Select parent distribution to use
+LB_PARENT_DISTRIBUTION=""
+
+# Select distribution to use in the chroot
+LB_DISTRIBUTION_CHROOT="trixie"
+
+# Select parent distribution to use in the chroot
+LB_PARENT_DISTRIBUTION_CHROOT="trixie"
+
+# Select distribution to use in the final image
+LB_DISTRIBUTION_BINARY="trixie"
+
+# Select parent distribution to use in the final image
+LB_PARENT_DISTRIBUTION_BINARY="trixie"
+
+# Select parent distribution for debian-installer to use
+LB_PARENT_DEBIAN_INSTALLER_DISTRIBUTION=""
+
+# Select archive areas to use
+LB_ARCHIVE_AREAS="main"
+
+# Select parent archive areas to use
+LB_PARENT_ARCHIVE_AREAS="main"
+
+# Set parent mirror to bootstrap from
+LB_PARENT_MIRROR_BOOTSTRAP="http://deb.debian.org/debian/"
+
+# Set parent mirror to fetch packages from
+LB_PARENT_MIRROR_CHROOT="http://deb.debian.org/debian/"
+
+# Set security parent mirror to fetch packages from
+LB_PARENT_MIRROR_CHROOT_SECURITY="http://security.debian.org/"
+
+# Set parent mirror which ends up in the image
+LB_PARENT_MIRROR_BINARY="http://deb.debian.org/debian/"
+
+# Set security parent mirror which ends up in the image
+LB_PARENT_MIRROR_BINARY_SECURITY="http://security.debian.org/"
+
+# Set debian-installer parent mirror
+LB_PARENT_MIRROR_DEBIAN_INSTALLER="http://deb.debian.org/debian/"
+
+# Set mirror to bootstrap from
+LB_MIRROR_BOOTSTRAP="http://deb.debian.org/debian/"
+
+# Set mirror to fetch packages from
+LB_MIRROR_CHROOT="http://deb.debian.org/debian/"
+
+# Set security mirror to fetch packages from
+LB_MIRROR_CHROOT_SECURITY="http://security.debian.org/"
+
+# Set mirror which ends up in the image
+LB_MIRROR_BINARY="http://deb.debian.org/debian/"
+
+# Set security mirror which ends up in the image
+LB_MIRROR_BINARY_SECURITY="http://security.debian.org/"
+
+# Set debian-installer mirror
+LB_MIRROR_DEBIAN_INSTALLER="http://deb.debian.org/debian/"
+
+# Set architectures to use foreign bootstrap
+LB_BOOTSTRAP_QEMU_ARCHITECTURE=""
+
+# Set packages to exclude during foreign bootstrap
+LB_BOOTSTRAP_QEMU_EXCLUDE=""
+
+# Set static qemu binary for foreign bootstrap
+LB_BOOTSTRAP_QEMU_STATIC=""
+# config/chroot - options for live-build(7), chroot stage
+
+# Set chroot filesystem
+LB_CHROOT_FILESYSTEM="squashfs"
+
+# Set chroot squashfs compression level
+LB_CHROOT_SQUASHFS_COMPRESSION_LEVEL=""
+
+# Set chroot squashfs compression type
+LB_CHROOT_SQUASHFS_COMPRESSION_TYPE=""
+
+# Set union filesystem
+LB_UNION_FILESYSTEM="overlay"
+
+# Set interactive build
+LB_INTERACTIVE="false"
+
+# Set keyring packages
+LB_KEYRING_PACKAGES="debian-archive-keyring"
+
+# Set kernel flavour to use (with arch)
+LB_LINUX_FLAVOURS_WITH_ARCH="amd64"
+
+# Set kernel packages to use
+LB_LINUX_PACKAGES="linux-image"
+
+# Enable security updates
+LB_SECURITY="true"
+
+# Enable updates updates
+LB_UPDATES="true"
+
+# Enable backports updates
+LB_BACKPORTS="false"
+
+# Enable proposed updates
+LB_PROPOSED_UPDATES="false"
+# config/binary - options for live-build(7), binary stage
+
+# Set image type
+LB_IMAGE_TYPE="iso-hybrid"
+
+# Set image filesystem
+LB_BINARY_FILESYSTEM="fat32"
+
+# Set apt/aptitude generic indices
+LB_APT_INDICES="true"
+
+# Set boot parameters
+LB_BOOTAPPEND_LIVE="boot=live components quiet splash"
+
+# Set boot parameters
+LB_BOOTAPPEND_INSTALL=""
+
+# Set boot parameters
+LB_BOOTAPPEND_LIVE_FAILSAFE="boot=live components memtest noapic noapm nodma nomce nosmp nosplash vga=788"
+
+# Set BIOS bootloader
+LB_BOOTLOADER_BIOS="syslinux"
+
+# Set EFI bootloader
+LB_BOOTLOADER_EFI="grub-efi"
+
+# Set bootloaders
+LB_BOOTLOADERS=""
+
+# Set checksums
+LB_CHECKSUMS="sha256"
+
+# Set compression
+LB_COMPRESSION="none"
+
+# Support dm-verity on rootfs
+LB_DM_VERITY=""
+
+# Support FEC on dm-verity rootfs
+LB_DM_VERITY_FEC_ROOTS=""
+
+# Set sign script for roothash for dm-verity rootfs
+LB_DM_VERITY_SIGN=""
+
+# Set zsync
+LB_ZSYNC="false"
+
+# Control if we build binary images chrooted
+# NEVER, *EVER*, *E*V*E*R* SET THIS OPTION to false.
+LB_BUILD_WITH_CHROOT="true"
+
+# Set debian-installer
+LB_DEBIAN_INSTALLER="none"
+
+# Set debian-installer suite
+LB_DEBIAN_INSTALLER_DISTRIBUTION="trixie"
+
+# Set debian-installer preseed filename/url
+LB_DEBIAN_INSTALLER_PRESEEDFILE=""
+
+# Toggle use of GUI debian-installer
+LB_DEBIAN_INSTALLER_GUI="true"
+
+# Set hdd label
+LB_HDD_LABEL="DEBIAN_LIVE"
+
+# Set hdd filesystem size
+LB_HDD_SIZE="auto"
+
+# Set start of partition for the hdd target for BIOSes that expect a specific boot partition start (e.g. "63s"). If empty, use optimal layout.
+LB_HDD_PARTITION_START=""
+
+# Set iso author
+LB_ISO_APPLICATION="Debian Live"
+
+# Set iso preparer
+LB_ISO_PREPARER="live-build @LB_VERSION@; https://salsa.debian.org/live-team/live-build"
+
+# Set iso publisher
+LB_ISO_PUBLISHER="Debian Live project; https://wiki.debian.org/DebianLive; debian-live@lists.debian.org"
+
+# Set iso volume (max 32 chars)
+LB_ISO_VOLUME="Debian trixie @ISOVOLUME_TS@"
+
+# Set jffs2 eraseblock size
+LB_JFFS2_ERASEBLOCK=""
+
+# Set memtest
+LB_MEMTEST="none"
+
+# Set loadlin
+LB_LOADLIN="false"
+
+# Set win32-loader
+LB_WIN32_LOADER="false"
+
+# Set net tarball
+LB_NET_TARBALL="true"
+
+# Set onie
+LB_ONIE="false"
+
+# Set onie additional kernel cmdline options
+LB_ONIE_KERNEL_CMDLINE=""
+
+# Set inclusion of firmware packages in debian-installer
+LB_FIRMWARE_BINARY="true"
+
+# Set inclusion of firmware packages in the live image
+LB_FIRMWARE_CHROOT="true"
+
+# Set swap file path
+LB_SWAP_FILE_PATH=""
+
+# Set swap file size
+LB_SWAP_FILE_SIZE="512"
+
+# Enable/disable UEFI secure boot support
+LB_UEFI_SECURE_BOOT="auto"
+# config/source - options for live-build(7), source stage
+
+# Set source option
+LB_SOURCE="false"
+
+# Set image type
+LB_SOURCE_IMAGES="tar"
+live-boot
+live-config
+live-config-systemd
+systemd-sysv
+config/hooks:
+total 8
+drwxr-xr-x 2 root root 4096 Oct 30 19:55 live
+drwxr-xr-x 2 root root 4096 Oct 30 19:55 normal
+
+config/hooks/live:
+total 8
+lrwxrwxrwx 1 root root 69 Oct 30 19:55 0010-disable-kexec-tools.hook.chroot -> /usr/share/live/build/hooks/live/0010-disable-kexec-tools.hook.chroot
+lrwxrwxrwx 1 root root 72 Oct 30 19:55 0050-disable-sysvinit-tmpfs.hook.chroot -> /usr/share/live/build/hooks/live/0050-disable-sysvinit-tmpfs.hook.chroot
+
+config/hooks/normal:
+total 92
+lrwxrwxrwx 1 root root 71 Oct 30 19:55 1000-create-mtab-symlink.hook.chroot -> /usr/share/live/build/hooks/normal/1000-create-mtab-symlink.hook.chroot
+lrwxrwxrwx 1 root root 69 Oct 30 19:55 1010-enable-cryptsetup.hook.chroot -> /usr/share/live/build/hooks/normal/1010-enable-cryptsetup.hook.chroot
+lrwxrwxrwx 1 root root 72 Oct 30 19:55 1020-create-locales-files.hook.chroot -> /usr/share/live/build/hooks/normal/1020-create-locales-files.hook.chroot
+lrwxrwxrwx 1 root root 73 Oct 30 19:55 5000-update-apt-file-cache.hook.chroot -> /usr/share/live/build/hooks/normal/5000-update-apt-file-cache.hook.chroot
+lrwxrwxrwx 1 root root 75 Oct 30 19:55 5010-update-apt-xapian-index.hook.chroot -> /usr/share/live/build/hooks/normal/5010-update-apt-xapian-index.hook.chroot
+lrwxrwxrwx 1 root root 74 Oct 30 19:55 5020-update-glx-alternative.hook.chroot -> /usr/share/live/build/hooks/normal/5020-update-glx-alternative.hook.chroot
+lrwxrwxrwx 1 root root 75 Oct 30 19:55 5030-update-plocate-database.hook.chroot -> /usr/share/live/build/hooks/normal/5030-update-plocate-database.hook.chroot
+lrwxrwxrwx 1 root root 77 Oct 30 19:55 5040-update-nvidia-alternative.hook.chroot -> /usr/share/live/build/hooks/normal/5040-update-nvidia-alternative.hook.chroot
+lrwxrwxrwx 1 root root 58 Oct 30 19:55 5050-dracut.hook.chroot -> /usr/share/live/build/hooks/normal/5050-dracut.hook.chroot
+lrwxrwxrwx 1 root root 80 Oct 30 19:55 8000-remove-adjtime-configuration.hook.chroot -> /usr/share/live/build/hooks/normal/8000-remove-adjtime-configuration.hook.chroot
+lrwxrwxrwx 1 root root 71 Oct 30 19:55 8010-remove-backup-files.hook.chroot -> /usr/share/live/build/hooks/normal/8010-remove-backup-files.hook.chroot
+lrwxrwxrwx 1 root root 74 Oct 30 19:55 8020-remove-dbus-machine-id.hook.chroot -> /usr/share/live/build/hooks/normal/8020-remove-dbus-machine-id.hook.chroot
+lrwxrwxrwx 1 root root 70 Oct 30 19:55 8030-truncate-log-files.hook.chroot -> /usr/share/live/build/hooks/normal/8030-truncate-log-files.hook.chroot
+lrwxrwxrwx 1 root root 78 Oct 30 19:55 8040-remove-mdadm-configuration.hook.chroot -> /usr/share/live/build/hooks/normal/8040-remove-mdadm-configuration.hook.chroot
+lrwxrwxrwx 1 root root 83 Oct 30 19:55 8050-remove-openssh-server-host-keys.hook.chroot -> /usr/share/live/build/hooks/normal/8050-remove-openssh-server-host-keys.hook.chroot
+lrwxrwxrwx 1 root root 77 Oct 30 19:55 8060-remove-systemd-machine-id.hook.chroot -> /usr/share/live/build/hooks/normal/8060-remove-systemd-machine-id.hook.chroot
+lrwxrwxrwx 1 root root 74 Oct 30 19:55 8070-remove-temporary-files.hook.chroot -> /usr/share/live/build/hooks/normal/8070-remove-temporary-files.hook.chroot
+lrwxrwxrwx 1 root root 70 Oct 30 19:55 8080-reproducible-glibc.hook.chroot -> /usr/share/live/build/hooks/normal/8080-reproducible-glibc.hook.chroot
+lrwxrwxrwx 1 root root 76 Oct 30 19:55 8090-remove-ssl-cert-snakeoil.hook.chroot -> /usr/share/live/build/hooks/normal/8090-remove-ssl-cert-snakeoil.hook.chroot
+lrwxrwxrwx 1 root root 83 Oct 30 19:55 8100-remove-udev-persistent-cd-rules.hook.chroot -> /usr/share/live/build/hooks/normal/8100-remove-udev-persistent-cd-rules.hook.chroot
+lrwxrwxrwx 1 root root 84 Oct 30 19:55 8110-remove-udev-persistent-net-rules.hook.chroot -> /usr/share/live/build/hooks/normal/8110-remove-udev-persistent-net-rules.hook.chroot
+lrwxrwxrwx 1 root root 75 Oct 30 19:55 9000-remove-gnome-icon-cache.hook.chroot -> /usr/share/live/build/hooks/normal/9000-remove-gnome-icon-cache.hook.chroot
+lrwxrwxrwx 1 root root 69 Oct 30 19:55 9010-remove-python-pyc.hook.chroot -> /usr/share/live/build/hooks/normal/9010-remove-python-pyc.hook.chroot
+lrwxrwxrwx 1 root root 68 Oct 30 19:55 9020-remove-man-cache.hook.chroot -> /usr/share/live/build/hooks/normal/9020-remove-man-cache.hook.chroot
+config/package-lists:
+total 4
+-rw-r--r-- 1 root root 55 Oct 30 19:55 live.list.chroot

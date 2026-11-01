@@ -1,0 +1,37 @@
+=== 0. live-build's cached Contents files (lowercase name; earlier probe missed them) ===
+2729	/root/phantomos-m1/live/chroot/usr/share/icons/Adwaita/symbolic/legacy/help-contents-symbolic.svg
+2729	/root/phantomos-m1/live/chroot/usr/share/icons/Adwaita/symbolic/apps/help-contents-symbolic.svg
+4096	/root/phantomos-m1/live/cache/contents.chroot
+12698511	/root/phantomos-m1/live/cache/contents.chroot/trixie/main/contents-amd64.gz
+38208826	/root/phantomos-m1/live/cache/contents.chroot/trixie/main/contents-all.gz
+9766	/root/phantomos-m1/live/live-image-amd64.contents
+  found contents-all.gz: /root/phantomos-m1/live/cache/contents.chroot/trixie/main/contents-all.gz
+  found contents-amd64.gz: /root/phantomos-m1/live/cache/contents.chroot/trixie/main/contents-amd64.gz
+combined Contents lines: 8175502
+
+=== 1. reproduce Firmware_List_From_Contents's awk exactly ===
+  packages the awk yields: 6
+  same, split on comma: 6
+
+=== 2. do the seven come out of it? ===
+  alsa-topology-conf     no
+  firmware-ath9k-htc     no
+  firmware-carl9170      no
+  firmware-linux-free    no
+  indi-dsi               no
+  linux-image-amd64      no
+  wireless-regdb         no
+
+=== 3. the full enumerated firmware list, and the Contents line that produced each ===
+  total enumerated: 6
+    kernel/firmware-carl9170
+    kernel/firmware-linux-free
+    libs/alsa-topology-conf
+    misc/firmware-ath9k-htc
+    net/wireless-regdb
+    science/indi-dsi
+
+--- the firmware-*/wireless/alsa-named subset (what a live image actually needs)
+
+=== 4. does the raw field ever hold a comma-joined group? (the awk prints $NF) ===
+0

@@ -1,0 +1,52 @@
+=== how big is the enumeration if non-free-firmware is enabled? (§12 item 11) ===
+--- non-free-firmware: 5009 Contents lines, 4792 lib/firmware paths, 34 distinct packages
+    as live-build builds it (no comma split): 34 fields, 0 of them comma-joined groups
+    first 25 package names:
+      atmel-firmware
+      bluez-firmware
+      dahdi-firmware-nonfree
+      firmware-amd-graphics
+      firmware-ast
+      firmware-atheros
+      firmware-bnx2
+      firmware-bnx2x
+      firmware-brcm80211
+      firmware-cavium
+      firmware-cirrus
+      firmware-intel-graphics
+      firmware-intel-misc
+      firmware-intel-sound
+      firmware-ipw2x00
+      firmware-ivtv
+      firmware-iwlwifi
+      firmware-libertas
+      firmware-marvell-prestera
+      firmware-mediatek
+      firmware-misc-nonfree
+      firmware-myricom
+      firmware-netronome
+      firmware-netxen
+      firmware-nvidia-graphics
+    laptop-relevant subset:
+      firmware-amd-graphics
+      firmware-intel-graphics
+      firmware-intel-misc
+      firmware-intel-sound
+      firmware-iwlwifi
+      firmware-libertas
+      firmware-sof-signed
+    Contents-all.gz size: 27018 bytes
+--- contrib: 19986 Contents lines, 2 lib/firmware paths, 2 distinct packages
+    as live-build builds it (no comma split): 2 fields, 0 of them comma-joined groups
+    Contents-all.gz size: 133992 bytes
+--- main: 6322182 Contents lines, 32 lib/firmware paths, 5 distinct packages
+    as live-build builds it (no comma split): 5 fields, 0 of them comma-joined groups
+    Contents-all.gz size: 38208826 bytes
+
+=== main only, the set live-build actually enumerated ===
+5
+  alsa-topology-conf
+  firmware-ath9k-htc
+  firmware-carl9170
+  firmware-linux-free
+  wireless-regdb

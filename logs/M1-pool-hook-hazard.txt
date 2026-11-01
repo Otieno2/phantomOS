@@ -1,0 +1,98 @@
+M1 — the pool path is inside the directories live-build's default hooks delete
+================================================================================
+Run 2026-10-30, WSL Debian as root. Script: /tmp/hd2.sh, kept in this repo's history as
+the block reproduced below; it creates its own throwaway 'pool' and deletes only what it
+made. The point is that the two cases run the SAME hook body and differ only in the host
+path of the bind.
+
+What the failed build said (logs/M1-lb-build-pool-hook.log:5842-5844, run started
+[2026-10-30 22:35:58], pool then at /var/tmp/phantomos-build/pool):
+  P: Executing hook config/hooks/normal/8070-remove-temporary-files.hook.chroot...
+  rm: cannot remove '/var/tmp/phantomos-build/pool': Device or resource busy
+  E: config/hooks/normal/8070-remove-temporary-files.hook.chroot failed (exit non-zero).
+
+That log also contains the proof that the first-line fix works:
+  711:P: Binding local repository path /var/tmp/phantomos-build/pool
+  712:Get:1 file:/var/tmp/phantomos-build/pool ./ InRelease [1954 B]
+  2194..2197: all four metapackages fetched from the pool
+  5100/5755/5756: Setting up phantomos-release / -base / -desktop
+The bind was no longer the problem; a later stage was.
+
+=== the demonstration ===
+/usr/share/live/build/functions/chroot_bind_path.sh: line 32: Echo_message: command not found
+=== pool host path: /var/tmp/phantomos-hookdemo/pool ===
+  bound at: /tmp/hookdemo-chroot/var/tmp/phantomos-hookdemo/pool
+  contents seen from inside the chroot: InRelease phantomos-base_0.1.0-1_all.deb Release 
+  hook's rm -rf loop over /tmp /var/tmp -> exit 1
+      rm: cannot remove '/tmp/hookdemo-chroot/var/tmp/phantomos-hookdemo/pool': Device or resource busy
+  the source pool after the hook: [empty above means deleted at source]
+      InRelease gone
+
+/usr/share/live/build/functions/chroot_bind_path.sh: line 32: Echo_message: command not found
+=== pool host path: /opt/phantomos-hookdemo/pool ===
+  bound at: /tmp/hookdemo-chroot/opt/phantomos-hookdemo/pool
+  contents seen from inside the chroot: InRelease phantomos-base_0.1.0-1_all.deb Release 
+  hook's rm -rf loop over /tmp /var/tmp -> exit 0
+  the source pool after the hook: InRelease phantomos-base_0.1.0-1_all.deb Release [empty above means deleted at source]
+      InRelease survived
+
+=== the hook, verbatim, so the directory list is not a recollection ===
+1:#!/bin/sh
+2:
+3:set -e
+4:
+5:# Remove temporary files
+6:for _DIRECTORY in /tmp /var/tmp
+7:do
+8:	rm -rf ${_DIRECTORY}
+9:
+10:	mkdir -p ${_DIRECTORY}
+11:	chmod 1777 ${_DIRECTORY}
+12:done
+13:
+14:# Remove the old lock file which will be generated when needed
+15:rm -f /etc/.pwd.lock
+16:
+17:# Remove /run/mount/utab of util-linux libmount (and its directory)
+18:# The file and directory will be generated when needed
+19:if [ -d /run/mount ]; then
+20:	rm -f /run/mount/utab
+21:	rmdir --ignore-fail-on-non-empty /run/mount
+22:fi
+
+=== directory-level removals across the default normal hook set ===
+8010-remove-backup-files.hook.chroot:10:rm -f /etc/apt/trusted.gpg~
+8010-remove-backup-files.hook.chroot:12:rm -f /etc/passwd-
+8010-remove-backup-files.hook.chroot:13:rm -f /etc/group-
+8010-remove-backup-files.hook.chroot:14:rm -f /etc/shadow-
+8010-remove-backup-files.hook.chroot:15:rm -f /etc/gshadow-
+8010-remove-backup-files.hook.chroot:17:rm -f /var/cache/debconf/*-old
+8010-remove-backup-files.hook.chroot:18:rm -f /var/lib/dpkg/*-old
+8010-remove-backup-files.hook.chroot:20:rm -f /usr/share/info/dir.old
+8010-remove-backup-files.hook.chroot:9:rm -f /etc/apt/sources.list~
+8020-remove-dbus-machine-id.hook.chroot:9:rm -f /var/lib/dbus/machine-id
+8040-remove-mdadm-configuration.hook.chroot:7:rm -f /etc/mdadm/mdadm.conf
+8050-remove-openssh-server-host-keys.hook.chroot:10:rm -f /etc/ssh/ssh_host_*_key /etc/ssh/ssh_host_*_key.pub
+8060-remove-systemd-machine-id.hook.chroot:11:	rm -f /etc/machine-id
+8070-remove-temporary-files.hook.chroot:15:rm -f /etc/.pwd.lock
+8080-reproducible-glibc.hook.chroot:9:rm -fr /var/cache/ldconfig
+8090-remove-ssl-cert-snakeoil.hook.chroot:11:	rm -f /etc/ssl/certs/ssl-cert-snakeoil.pem
+8090-remove-ssl-cert-snakeoil.hook.chroot:12:	rm -f /etc/ssl/private/ssl-cert-snakeoil.key
+8090-remove-ssl-cert-snakeoil.hook.chroot:9:	rm -f /etc/ssl/certs/$(openssl x509 -hash -noout -in /etc/ssl/certs/ssl-cert-snakeoil.pem)
+9000-remove-gnome-icon-cache.hook.chroot:9:rm -f /usr/share/icons/*/icon-theme.cache
+9020-remove-man-cache.hook.chroot:6:rm -rf /var/cache/man/*
+
+=== aftermath: nothing left mounted, nothing left behind ===
+  (no demo mounts)
+  (no demo paths remain)
+=== negative control: scripts/build-packages.sh refuses a pool under a hazard path ===
+E: the pool would be bind-mounted at /var/tmp/phantomos-build/pool, inside /var/tmp.
+   8070-remove-temporary-files.hook.chroot runs 'rm -rf /tmp /var/tmp' inside
+   the chroot, after the packages are installed and before the archives stage
+   unmounts — that is how a pool at /var/tmp/phantomos-build/pool was deleted
+   off the build host and the build aborted on EBUSY (§9.1).
+  exit code: 1
+  (a /var/tmp pool now fails at the contract check, before anything is built or deleted)
+
+=== and the committed file passes both halves ===
+deb file:///opt/phantomos-build/pool ./

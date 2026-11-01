@@ -1,0 +1,220 @@
+Who owns the five firmware names now — a reverse-dependency scan, run 2026-10-31 (02:3x, against
+the build host's own trixie indices while the post-amendment rebuild was in its install pass).
+
+=== the question, and why the claim needed a run ===
+
+docs/SPEC.md §5's 2026-10-31 amendment says the enablement packages are "named because nothing else
+names them any more", and logs/M1-firmware-chroot-off-run.txt §4 shows the five arriving as
+"additional packages" of the new build. Both of those say the same thing: the image carries them
+because `manifests/base.pkgs` does. That is only worth amending the spec for if deleting a line from
+`base.pkgs` really deletes a package from the image — otherwise the manifest is decoration on top of
+an edge that some other package controls, and §5 would be claiming control it does not have.
+The test for that is a reverse-Depends scan: if the archive itself has an edge to one of these names,
+our line is not what keeps it.
+
+=== method ===
+
+  Script: throwaway, this run only. Files scanned, read-only, exactly the four index files already on
+  the host from the main-only /etc/apt/sources.list.d/0000debian.sources:
+
+    deb.debian.org_debian_dists_trixie_main_binary-amd64_Packages                 56 620 099 B
+    security.debian.org_debian-security_dists_trixie-security_main_binary-amd64_Packages 1 855 409 B
+    deb.debian.org_debian_dists_trixie-backports_main_binary-amd64_Packages        2 074 082 B
+    deb.debian.org_debian_dists_trixie-updates_main_binary-amd64_Packages              1 406 B
+
+  `Depends:` and `Pre-Depends:` fields are tokenised — split on ",", each token trimmed, " ( version
+  )" clause dropped, ":arch" qualifier dropped — and compared for **equality** against the name. A
+  substring grep would have matched `firmware-linux-free` inside `firmware-linux-nonfree` and printed
+  a confident wrong answer, which is the failure mode this whole milestone keeps hitting.
+  Total edges collected: 335 894.
+
+=== result ===
+
+    firmware-linux-free    nothing in these indices Depends or Pre-Depends on it
+    firmware-ath9k-htc     nothing in these indices Depends or Pre-Depends on it
+    firmware-carl9170      nothing in these indices Depends or Pre-Depends on it
+    alsa-topology-conf     nothing in these indices Depends or Pre-Depends on it
+    indi-dsi               nothing in these indices Depends or Pre-Depends on it
+    wireless-regdb         ONE dependent: reform-desktop-minimal
+
+  and all five are in the Depends: of the package this project builds:
+
+    dpkg-deb -f /opt/phantomos-build/pool/phantomos-base_0.1.0-1_all.deb Depends
+      ... phantomos-release phantomos-config sudo unattended-upgrades apparmor nftables lvm2
+          cryptsetup ca-certificates apt-listchanges openssh-client flatpak
+          linux-image-amd64 firmware-linux-free firmware-ath9k-htc firmware-carl9170
+          wireless-regdb alsa-topology-conf
+    indi-dsi is not in that list. It is in manifests/drops.pkgs.
+
+  So: for four of the five, the only edge into the image is ours. `wireless-regdb` has one
+  third-party dependent in the archive, `reform-desktop-minimal`, which is not in §5's selection and
+  is not pulled by anything that is — the scan checked that, and `phantomos-base`'s Depends: line
+  above is the complete list of what this project names. Its other documented route is a
+  `Recommends:` of `network-manager` (§12 item 12), and Recommends are off in this build
+  (`--apt-recommends false`, plus live-build's own `-o APT::Install-Recommends=false` in
+  functions/packages.sh:56), so that route is closed. Naming it is load-bearing.
+
+  The claim in §5 is therefore true in the direction it matters: delete the line, the package goes.
+
+=== what this scan does NOT cover, stated because the limits are load-bearing ===
+
+  - The universe is **main**, the four files above. `contrib` and `non-free-firmware` indices are not
+    on this host (they were fetched read-only over HTTPS for logs/M1-firmware-areas.txt and
+    logs/M1-firmware-nonfree-scale.txt, which counted packages and paths, not dependency edges).
+    That is the right universe, not a shortcut: --archive-areas main means an edge from a package
+    outside main could not be resolved by this build anyway. If §12 item 11 opens the area, this scan
+    has to be re-run against it, because a non-free package could Depends: on one of these names and
+    silently make our line redundant.
+  - Only `Depends:` and `Pre-Depends:`. `Recommends:`, `Suggests:`, `Enhances:` and `Package: …`
+    multi-line virtual-provider tricks are not scanned. That is deliberate: with Recommends off, a
+    Recommends edge is not a route into the image, and the question was "can this package arrive
+    without our line", which for this build only Depends/Pre-Depends can answer.
+  - This is a statement about the archive's index, not about the booted image. The image-side answer
+    is `scripts/m1-diff.sh` (a §5 name that is absent fails direction 1) plus
+    `harness/commands/M1.txt`'s `dpkg -l` line on the running machine.
+
+=== one incidental finding from the same index read, kept because it is the kind that bites ===
+
+  `linux-image-amd64` appears in three stanzas of the files scanned, because backports is one of the
+  four:
+
+    Version: 6.12.107-1              Depends: linux-image-6.12.107+deb13-amd64 (= 6.12.107-1)
+    Version: 6.12.113-1              Depends: linux-image-6.12.113+deb13-amd64 (= 6.12.113-1)
+    Version: 7.2.11-1~bpo13+1        Depends: linux-base-amd64 (= 7.2.11-1~bpo13+1),
+                                               linux-image-7.2.11+deb13-amd64 (= 7.2.11-1~bpo13+1)
+
+  So a build host with a backports index can resolve the same name to a kernel three minor versions
+  ahead of the release. What the pre-amendment image actually installed is measured, from its own
+  dpkg database (logs/pre-config-image-installed.txt) and its build log
+  (`Setting up linux-image-6.12.113+deb13-amd64`): **6.12.113+deb13-amd64**, the stable kernel, not
+  the backport. That matches §6.4 ("Debian's kernel as shipped, no rebuild") and matches the
+  running M0 guest, which booted 6.12.113+deb13-amd64 (§3.1's "as booted" row).
+  The post-amendment build's kernel is checked in the next section.
+
+=== the post-amendment build, same question ===
+
+  Measured after the build finished (source: logs/M1-lb-build-firmware.log, and
+  `scripts/m1-diff.sh`'s logs/M1-image-installed.txt).
+
+  Which build this is, because the answer is only as good as that: `logs/M1-lb-build-firmware.log`
+  opens `[2026-10-31 02:18:11] lb build`, which is 2026-10-30T23:18:11Z in the UTC that
+  `scripts/build-iso.sh` stamps filenames with — that is **run K** of §9.1, 237 099 B, copied out at
+  03:10 local. Its configuration is read from its own dump rather than recalled, and it is the
+  post-amendment one (logs/M1-config-dump-2026-10-30T231811Z.txt):
+
+    line   5  LB_APT_RECOMMENDS="false"
+    line   9  LB_ARCHIVE_AREAS="main"
+    line  45  LB_FIRMWARE_CHROOT="false"
+
+  The installed set is `logs/M1-image-installed.txt`, 834 names, 834 raw — the two counts agreeing is
+  the `:arch`-collision check at scripts/m1-diff.sh:165, so no two stanzas were merged by the strip.
+  150 of the 834 are manual selections. m1-diff.sh:129,146-162 reads them out of
+  `$TREE/binary/live/filesystem.squashfs` with `unsquashfs`, not off the host tree.
+
+  The five names, in that set:
+
+    alsa-topology-conf       present, line   3 of 834
+    firmware-ath9k-htc       present, line  64
+    firmware-carl9170        present, line  65
+    firmware-linux-free      present, line  66
+    wireless-regdb           present, line 780
+    indi-dsi                 ABSENT  (0 of 834) — manifests/drops.pkgs did what it says
+
+  and the four metapackages this project builds are in the same set: `phantomos-base`,
+  `phantomos-desktop`, `phantomos-release`, `phantomos-config`, one stanza each. So the reverse
+  dependency scan above and the image agree: the line in `manifests/base.pkgs` is what carries them,
+  and deleting it deletes them.
+
+  The kernel, which the previous section left open. `linux-image-amd64` resolves, in that build, to
+  the stable stanza and not to the backport one that the same index also offers:
+
+    log line  565  Unpacking linux-image-6.12.113+deb13-amd64 (6.12.113-1) ...
+    log line 2351  Unpacking linux-image-amd64 (6.12.113-1) ...
+    log line 3083  Setting up linux-image-6.12.113+deb13-amd64 (6.12.113-1) ...
+    log line 3104  Setting up linux-image-amd64 (6.12.113-1) ...
+
+  6.12.113-1, identical to what the pre-amendment image installed and to what the M0 guest booted.
+  Turning off Contents-based enumeration therefore did not move the kernel, and `7.2.11-1~bpo13+1`
+  stayed in the index without being chosen. §6.4's claim is unaffected by the amendment.
+
+  Versions of the five, from the same log, recorded because a name is not a version:
+
+    alsa-topology-conf     1.2.5.1-3
+    firmware-ath9k-htc     1.4.0-110-ge888634+dfsg1-0.1
+    firmware-carl9170      1.9.9-450-gad1c721+dfsg-0.1
+    firmware-linux-free    20241210-2
+    wireless-regdb         2026.05.30-1~deb13u1
+
+=== one more absence from the same read, which is §12 item 12's new candidate ===
+
+  `alsa-ucm-conf` is **absent**, 0 of 834, while `libasound2-data` — the package whose `Recommends:`
+  it is — is **present**, one stanza. That is the edge measured from both ends: the recommending
+  package is in the image, the recommended one is not, and `LB_APT_RECOMMENDS="false"` above is the
+  reason. §12 item 12 recorded the same absence from a different source
+  (logs/M1-firmware-contents-lines.txt §7, read out of the archive's Contents-derived listing); this
+  is a second, independent measurement of it out of the built image's own dpkg database. Two sources
+  agreeing is worth more than one, and this one is the stronger of the two because it is the image
+  rather than the index. `alsa-topology-conf` being present while its companion is not is the exact
+  asymmetry item 12 describes: half of ALSA's card configuration arrives because §5 names it, and the
+  other half does not arrive at all.
+
+=== limit, and it is the one §10 now carries ===
+
+  Run K never assembled an ISO. It died in `binary_rootfs`'s teardown
+  (`/usr/lib/live/build/binary_rootfs:347-362`, logs/M1-runK-rootfs-iso-failure.txt), after the
+  837 296 128-byte squashfs was written but before anything was wrapped around it. So everything in
+  this section was, when written, a statement about the **rootfs image** a build produced, not about
+  a shipped artifact a friend could boot. The names, the kernel and the absences were unlikely to
+  differ — the squashfs was already complete and frozen — but "unlikely" is not a measurement, and
+  §11 does not accept one. Run M (2026-11-01T14:03:27Z) was the build that repeats this against an
+  assembled ISO; when it lands, `scripts/m1-diff.sh` regenerates `logs/M1-image-installed.txt` from
+  the shipped squashfs and the five lines above get re-read rather than assumed.
+
+=== the re-read, done 2026-11-01 against run M's shipped image ===
+
+  Run M landed and the re-read was made. `logs/M1-image-installed.txt` was regenerated at 18:58
+  host-local (15:58Z, six minutes after `lb build exit 0`) and is 834 lines. Every number above
+  reproduced exactly:
+
+    alsa-topology-conf       line   3 of 834   (was line   3)
+    firmware-ath9k-htc       line  64          (was line  64)
+    firmware-carl9170        line  65          (was line  65)
+    firmware-linux-free      line  66          (was line  66)
+    wireless-regdb           line 780          (was line 780)
+    indi-dsi                 ABSENT            (still absent)
+    alsa-ucm-conf            ABSENT            (still absent)
+    libasound2-data          line 126, present (was present)
+    phantomos-base/-config/-desktop/-release   lines 727, 728, 729, 730
+
+  The kernel did not move either, out of run M's own build log
+  (`logs/M1-lb-build-runM.log`, 4971 lines):
+
+    line 1229  Unpacking linux-image-6.12.113+deb13-amd64 (6.12.113-1) ...
+    line 3015  Unpacking linux-image-amd64 (6.12.113-1) ...
+    line 3747  Setting up linux-image-6.12.113+deb13-amd64 (6.12.113-1) ...
+    line 3768  Setting up linux-image-amd64 (6.12.113-1) ...
+    `grep -c '7\.2\.11-1~bpo13' logs/M1-lb-build-runM.log` -> 0
+
+  and the five versions are the same strings as run K's: alsa-topology-conf 1.2.5.1-3 (log line
+  3477), firmware-ath9k-htc 1.4.0-110-ge888634+dfsg1-0.1 (3529), firmware-carl9170
+  1.9.9-450-gad1c721+dfsg-0.1 (3570), firmware-linux-free 20241210-2 (3308), wireless-regdb
+  2026.05.30-1~deb13u1 (3333). So §6.4's claim and the amendment survive the move from a rootfs to a
+  shipped artifact, and the limit above is discharged rather than carried.
+
+  Two things this re-read does **not** discharge:
+
+  1. It is a statement about run M, and run M's image cannot be logged into
+     (logs/M1-no-live-user.txt). Run N rebuilds from a cold tree with `user-setup`, `locales` and
+     `live-tools` named in manifests/live.pkgs, so the milestone artifact will be a different
+     squashfs. Nothing in the three added packages touches firmware — `user-setup` is a Perl script
+     and a debconf template, `locales` is glibc's locale data, `live-tools` is live-config's helpers
+     — but "nothing in them touches firmware" is a reading of three control files, not a measurement.
+     The same five names, the same kernel and the same two absences get re-checked against run N's
+     artifact before §10's M1 row moves. The 834 total will not survive — three more named packages
+     means at least three more stanzas, plus whatever their own dependency edges drag in — and no
+     count is predicted here, because predicting one is how the polkitd claim in §12 item 12 got
+     written down wrong (logs/M1-no-live-user.txt §5).
+  2. Presence in the image is still not function on hardware. What is measured here is that dpkg
+     installed the blobs and that the enumeration change did not drop any of them. Whether
+     `firmware-ath9k-htc` actually loads on a friend's card, and whether the missing `alsa-ucm-conf`
+     is audible, are §12 item 12's open question and belong to the M2 session on real hardware.

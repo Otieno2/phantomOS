@@ -1,0 +1,38 @@
+# Line endings and binary handling, set deliberately rather than left to defaults.
+#
+# Why this file exists at all: every text file in this tree is LF (measured — zero CR lines in
+# docs/SPEC.md, scripts/*.sh, manifests/* and .gitignore). Git for Windows defaults core.autocrlf
+# to true, which would convert the whole tree on the next checkout. A shell script with CRLF line
+# endings does not fail in a way that looks like a line-ending problem under WSL: `#!/bin/bash\r`
+# is not the interpreter anyone asked for, and `set -euo pipefail\r` fails in the middle of a
+# multi-hour build. So the conversion has to be refused in the tree, not remembered by each clone.
+* text=auto eol=lf
+
+# Named explicitly because they are executed by a Linux shell inside WSL, and a single CR in any
+# of them costs a run that is already ~100 minutes deep.
+*.sh          text eol=lf
+live/auto/config text eol=lf
+
+# Manifests are read by scripts/gen-package-lists.sh, which treats each non-comment line as a
+# package name. A trailing \r becomes part of the name and apt fails on it.
+manifests/*.pkgs text eol=lf
+
+# Cited evidence is never rewritten. §11 makes these logs the proof behind claims in SPEC.md, and
+# logs/evidence/{M0-evidence,M1-boot-artifacts}-sha256.txt are checksum manifests over files that
+# are themselves in this tree — normalise a single byte of any of them and a committed manifest
+# starts lying about committed bytes. Measured: three cited logs already contain a CR line
+# (logs/M1-explicit-attribution.txt, logs/M1-shipped-dpkg.txt), which is exactly the content that
+# a text=auto pass would change.
+logs/**   -text
+docs/SPEC.md text eol=lf
+
+# Screenshots and signed material are bytes, not text.
+*.png       binary
+*.jpg       binary
+*.gz        binary
+*.xz        binary
+*.deb       binary
+*.iso       binary
+*.key.chroot binary
+*.gpg       binary
+*.asc       binary

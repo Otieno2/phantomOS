@@ -1,0 +1,53 @@
+=== live/cache contents and sizes ===
+262M	/root/phantomos-m1/live/cache/bootstrap
+49M	/root/phantomos-m1/live/cache/contents.chroot
+15M	/root/phantomos-m1/live/cache/packages.binary
+48M	/root/phantomos-m1/live/cache/packages.bootstrap
+574M	/root/phantomos-m1/live/cache/packages.chroot
+
+=== stage files present ===
+binary_bootloader_splash binary_checksums binary_chroot binary_disk binary_dm-verity binary_grub_cfg binary_grub-efi binary_hooks binary_includes binary_iso binary_linux-image binary_manifest binary_package-lists binary_rootfs binary_syslinux bootstrap bootstrap_cache.save chroot_debianchroot chroot_firmware chroot_hacks chroot_hooks chroot_includes_after_packages chroot_includes_before_packages chroot_install-packages.install chroot_install-packages.live chroot_linux-image chroot_package-lists.install chroot_package-lists.live chroot_preseed config 
+
+=== lb clean: what each mode removes ===
+48:			RM_ALL="true"
+101:	RM_ALL="true"
+108:	RM_ALL="true"
+118:	RM_ALL="true"
+119:	rm -rf cache/packages.*
+122:if [ "${RM_ALL}" = "true" ]; then
+135:	rm -rf "${STAGEFILES_DIR}"/*
+140:	rm -rf cache
+160:	rm -rf chroot chroot.tmp
+173:	rm -rf binary.tmp binary.deb binary.udeb
+185:	rm -rf binary
+186:	rm -rf tftpboot
+200:	rm -rf source
+
+=== where the downloaded .debs live, and their total ===
+72K	/root/phantomos-m1/live/chroot/var/cache/apt/archives
+  /root/phantomos-m1/live/config/archives
+
+=== the last build's download volume, from its own log ===
+Need to get 0 B/3651 kB of archives.
+Need to get 0 B/104 kB of archives.
+Need to get 0 B/596 MB of archives.
+Need to get 0 B/104 kB of archives.
+Need to get 0 B/3651 kB of archives.
+Need to get 0 B/3651 kB of archives.
+
+=== are the six names available in the exact indices the chroot used? ===
+  linux-image-amd64      in 2 of the chroot index files
+  firmware-linux-free    in 1 of the chroot index files
+  firmware-ath9k-htc     in 1 of the chroot index files
+  firmware-carl9170      in 1 of the chroot index files
+  wireless-regdb         in 1 of the chroot index files
+  alsa-topology-conf     in 1 of the chroot index files
+  indi-dsi               in 1 of the chroot index files
+
+=== host apt (main-only) candidates ===
+  linux-image-amd64      6.12.113-1
+  firmware-linux-free    20241210-2
+  firmware-ath9k-htc     1.4.0-110-ge888634+dfsg1-0.1
+  firmware-carl9170      1.9.9-450-gad1c721+dfsg-0.1
+  wireless-regdb         2026.05.30-1~deb13u1
+  alsa-topology-conf     1.2.5.1-3

@@ -1,0 +1,106 @@
+§3.1 fact rows re-checked 2026-10-31 against the archive, not against the website.
+
+Why this run exists: §11 says "before declaring a milestone done: re-run the gate … then update
+§3.1's fact table if versions moved". §3.1's rows are sourced from packages.debian.org pages dated
+2026-10-24/29. This check reads the **same index files the build resolves from**
+(/var/lib/apt/lists on the build host), which is a stronger source for a claim about an image than a
+rendered web page: it is what apt actually sees. Script: throwaway, this run only; the scan is
+awk over the four `…_Packages` files, fields `Version:`/`Section:` per `Package:` stanza, so it is an
+equality test on names, never a substring match.
+
+=== scope, stated up front ===
+
+  Suites present on the host, from their own InRelease files:
+
+    deb.debian.org_debian_dists_trixie                Suite=stable            Components=main
+    deb.debian.org_debian_dists_trixie-updates        Suite=stable-updates     Components=main
+    deb.debian.org_debian_dists_trixie-backports      Suite=stable-backports   Components=main
+    security.debian.org_…_trixie-security             Suite=stable-security    Components=updates/main
+
+  **main only.** Every "absent" result below therefore means "absent from main", not "absent from
+  Debian". The rows that need suite=all — the five DDE packages, `deepin-gtk-theme`, `xfdashboard`,
+  `fonts-ubuntu` — were NOT re-checked by this run and §3.1 keeps their 2026-10-24 packages.debian.org
+  sourcing. Re-querying those is a web check, and §11 names the DDE row specifically as the one that
+  goes stale silently; it is a desktop-choice question and this build does not touch the choice.
+
+=== §3.1's rows, re-read ===
+
+    xfce4                          4.20.1            matches the row
+    xfce4-whiskermenu-plugin       2.9.2-1           matches
+    xfce4-docklike-plugin          0.4.3-1+b1        row says 0.4.3-1 — binNMU, see below
+    plank                          0.11.89-6+b1      matches (the row already carries +b1)
+    light-locker                   1.8.0-3+b1        row says 1.8.0-3 — binNMU
+    rofi                           1.7.5-0.1+b2      row says 1.7.5-0.1 — binNMU
+    picom                          12.5-1            matches
+    fonts-montserrat               7.222-3           matches
+    fonts-jetbrains-mono           2.304+ds-5        matches
+    deepin-icon-theme              2025.03.27-1      matches
+    deepin-terminal                5.9.51+dfsg-1+b1  row does not list a version for this one
+
+  Nothing moved in a way that changes a decision. Three rows are one binNMU behind: apt's candidate
+  is a rebuild of the same source version, so §5's "which package is in trixie" claims stand and only
+  the version strings are short. §3.1 is amended to say so rather than to pretend the table is exact.
+
+=== the part of this that is a finding, not a tick ===
+
+Several names exist in more than one suite on this host, at different versions, and which one ships
+is a property of the image, not of the index:
+
+    linux-image-amd64   trixie 6.12.107-1 | security 6.12.113-1 | backports 7.2.11-1~bpo13+1
+    firefox-esr         trixie 140.15.0esr-1~deb13u1 | security 153.6.0esr-1~deb13u1
+    flatpak             trixie 1.16.6-1~deb13u2 | security 1.16.6-1~deb13u3
+    pipewire            trixie 1.4.2-1 | backports 1.6.9-2~bpo13+1
+    wireplumber         trixie 0.5.8-2 | backports 0.5.12-1~bpo13+1
+
+  `firefox-esr` is the one that matters for §6.9: the security archive carries a **different ESR
+  series** than the release (153 vs 140), so the browser the image ships is not the browser a
+  `trixie`-only reading of the index would predict.
+
+  Measured what the pre-amendment M1 image actually installed, from its build log's dpkg lines
+  (logs/M1-lb-build-2026-10-30T204433Z.log):
+
+    Setting up firefox-esr (153.6.0esr-1~deb13u1)      <- security, the higher version
+    Setting up flatpak (1.16.6-1~deb13u3)              <- security
+    Setting up linux-image-6.12.113+deb13-amd64        <- security, NOT the 7.2.11 backport
+    Setting up wireplumber (0.5.8-2)                   <- trixie, NOT the 0.5.12 backport
+    Setting up network-manager (1.52.1-1)              <- trixie
+    Setting up plank (0.11.89-6+b1), rofi (1.7.5-0.1+b2)
+
+  A correction to the citation the paragraph above carried. When this file was written it said
+  `logs/M1-lb-build.log`, which was then that build's copy — `scripts/build-iso.sh` copied each run's
+  log into a **fixed** name, so run M replaced it on 2026-11-01 18:52 local with a log from a
+  different build. The original was recovered from the build host, which keeps every run under its
+  own timestamp, as logs/M1-lb-build-2026-10-30T204433Z.log (sha256
+  619cca2b5cbc8b4d35fd338de0b1b63803dbaf503ff96ac07268644687f37717, 5055 lines, first stamp
+  `[2026-10-30 23:44:34] lb build` = 20:44:34Z, matching the filename). All seven dpkg lines above
+  were re-read out of the recovered file at 2026-11-01T17:44Z and every one is present verbatim, and
+  `grep -c '7\.2\.11-1~bpo13'` over it returns 0, which is the backports claim below. The fixed-name
+  copy is now stamped per run (`M1-lb-build-$START.log`), so this cannot recur.
+
+  Two things follow, and the second is the one worth writing down. First, the shipped system resolves
+  from trixie + trixie-security + trixie-updates — exactly the three `deb` lines the image ships in
+  its own `/etc/apt/sources.list` (`logs/M1-diff.txt`), so there is no gap between what the build
+  installed and what a `phantomos` machine can later upgrade from. Second, **the build host's
+  backports index does not put backports in the image**: the chroot has no backports entry, and that
+  is visible two independent ways in the same artifact (the kernel, 6.12.113 from security rather
+  than 7.2.11 from backports; and wireplumber 0.5.8-2 rather than 0.5.12-1~bpo13+1). That had been
+  assumed quietly while §6.4 was written; it is now a measurement, and it is also why §6.4's
+  "Debian's kernel as shipped, no rebuild" is checkable by a version string.
+
+  What `--linux-flavours amd64` does with that is a live-build question, not an index question, and
+  this run does not settle it; it only records which kernel package the finished image contains.
+  Each `linux-image-amd64` stanza names one concrete kernel image package (`6.12.107+deb13-amd64` in
+  trixie, `6.12.113+deb13-amd64` in security, `7.2.11+deb13-amd64` in backports, which also adds a
+  `linux-base-amd64` dependency), and the image has the security one.
+
+=== not covered by this run, so nobody reads more into it ===
+
+  - The point-release row ("13 trixie, point release 13.7 (2026-09-12)") is a debian.org/releases
+    fact; nothing in an index file states a point release. Not re-checked here.
+  - Absence rows (DDE, deepin-gtk-theme, xfdashboard, fonts-ubuntu) — see the scope box. The main-only
+    scan returned 0 hits for all eight names, which is consistent with §3.1 but is not the check
+    §3.1 cites.
+  - The versions above are the build host's cache, refreshed when this build's apt ran. A build
+    against a different mirror could see a newer security version of firefox-esr on the same day.
+    §9.1's parent-mirror-ships-as-child note is the reason that is not a problem: the channel list in
+    the image is the channel list the build used.

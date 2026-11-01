@@ -1,0 +1,47 @@
+=== disk space ===
+  Filesystem      Size  Used Avail Use% Mounted on
+  /dev/sdd       1007G  9.9G  946G   2% /
+  C:\             238G  207G   32G  87% /mnt/c
+
+=== our metapackages inside live-build's deb cache? (staleness hazard) ===
+  count: 0
+
+=== what live-build put in cache/packages.chroot (sample) ===
+adwaita-icon-theme_48.1-1_all.deb
+alsa-topology-conf_1.2.5.1-3_all.deb
+apparmor_4.1.0-1_amd64.deb
+apt-listchanges_4.8_all.deb
+at-spi2-common_2.56.2-1+deb13u2_all.deb
+  total files: 696
+
+=== the pool on the host, and its current contents ===
+2026-10-30 23:44        4096  /opt/phantomos-build
+2026-10-30 23:44        4096  /opt/phantomos-build/pool
+2026-10-30 23:44        2828  /opt/phantomos-build/pool/phantomos-release_0.1.0-1_all.deb
+2026-10-30 23:44        1222  /opt/phantomos-build/pool/Release
+2026-10-30 23:44        1954  /opt/phantomos-build/pool/InRelease
+2026-10-30 23:44        3856  /opt/phantomos-build/pool/Packages
+2026-10-30 23:44        1032  /opt/phantomos-build/pool/phantomos-desktop_0.1.0-1_all.deb
+2026-10-30 23:44         964  /opt/phantomos-build/pool/phantomos-base_0.1.0-1_all.deb
+2026-10-30 23:44        1564  /opt/phantomos-build/pool/phantomos-config_0.1.0-1_all.deb
+2026-10-30 23:44         683  /opt/phantomos-build/pool/Release.gpg
+2026-10-30 23:44        1895  /opt/phantomos-build/pool/Packages.gz
+2026-10-30 23:44        4096  /opt/phantomos-build/packages
+2026-10-30 20:29        4096  /opt/phantomos-build/packages/phantomos-release
+2026-10-30 23:44        4096  /opt/phantomos-build/packages/phantomos-release/DEBIAN
+2026-10-30 20:29        4096  /opt/phantomos-build/packages/phantomos-release/usr
+2026-10-30 23:44        4096  /opt/phantomos-build/packages/phantomos-desktop
+2026-10-30 23:44        4096  /opt/phantomos-build/packages/phantomos-desktop/DEBIAN
+2026-10-30 23:44        4096  /opt/phantomos-build/packages/phantomos-base
+2026-10-30 23:44        4096  /opt/phantomos-build/packages/phantomos-base/DEBIAN
+2026-10-30 20:30        4096  /opt/phantomos-build/packages/phantomos-config
+
+=== does the pool index match the debs now in it? (Package lines) ===
+  phantomos-base_0.1.0-1_all.deb  Depends: phantomos-release, phantomos-config, sudo, unattended-upgrades, apparmor, nftables, lvm2, cryptsetup, ca-certificates, a
+  phantomos-config_0.1.0-1_all.deb  Depends: 
+  phantomos-desktop_0.1.0-1_all.deb  Depends: phantomos-base, xfce4, xfce4-terminal, xfce4-whiskermenu-plugin, xfce4-notifyd, xfce4-power-manager, xfce4-battery-plugi
+  phantomos-release_0.1.0-1_all.deb  Depends: 
+
+=== current artifacts to preserve ===
+-rw-r--r-- 1 root root 838868992 Oct 30 23:44 /root/phantomos-m1/live/binary/live/filesystem.squashfs
+-rw-r--r-- 1 root root 910163968 Oct 30 23:44 /root/phantomos-m1/live/live-image-amd64.hybrid.iso

@@ -1,0 +1,34 @@
+phantomos-release
+===============
+
+What this package installs
+  /usr/share/keyrings/phantomos-archive.gpg — the public key that signs PhantomOS's
+  own packages.
+
+What this package does NOT do
+  It does not add an apt source. `/etc/apt/sources.list` and everything in
+  `/etc/apt/sources.list.d/` on an installed system show Debian's channels and nothing
+  of ours, so `apt update` talks to Debian only, and phantomos-* packages have no
+  upgrade path from a repository yet.
+
+Why not
+  Two reasons, both written down rather than discovered later:
+   1. Where the signed repository lives, and who runs it, is an open decision (§12
+      item 3 of the spec). A sources entry pointing at a URL that does not exist makes
+      `apt update` fail on every machine that installed this package.
+   2. The spec's §8 requires an HTTPS-only, signed channel with documented key
+      custody. Publishing a channel before that exists would make PhantomOS itself the
+      supply-chain risk §8 was written against.
+
+How the packages got here then
+  The image is built against a local pool of these metapackages, signed by this key.
+  The pool lives on the build host and is *mounted* into the build chroot for the
+  duration of the package install, and live-build removes the mount, the sources entry
+  and the matching /etc/apt/trusted.gpg.d key at the end of that stage — so the pool is
+  never part of the image and there is nothing of ours to take out of it. The .debs on
+  this machine therefore came from a verified signature at build time, and no
+  unverified channel is configured at run time.
+
+Turning a channel on, when M5 decides to
+  Create /etc/apt/sources.list.d/phantomos.sources pointing at the hosted repository
+  and set Signed-By: /usr/share/keyrings/phantomos-archive.gpg. Nothing else changes.

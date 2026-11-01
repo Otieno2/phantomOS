@@ -1,0 +1,111 @@
+=== 0. clock ===
+Sat Oct 31 01:30:01 AM EAT 2026
+Fri Oct 30 10:30:01 PM UTC 2026
+Africa/Nairobi
+TZ=[unset]
+
+=== 1. full-iso mtimes ===
+2026-10-30 23:44:34.000000000 +0300  910163968  /root/phantomos-m1/live/live-image-amd64.hybrid.iso
+2026-10-30 23:44:34.000000000 +0300  838868992  /root/phantomos-m1/live/binary/live/filesystem.squashfs
+2026-10-31 00:30:17.254209445 +0300  24449  /root/phantomos-m1/live/chroot.packages.live
+2026-10-31 01:18:13.924804100 +0300  290064  /root/phantomos-m1/logs/lb-build-2026-10-30T204433Z.log
+--- find every squashfs under the tree ---
+2026-10-30 23:44:34.0000000000  838868992  /root/phantomos-m1/live/binary/live/filesystem.squashfs
+--- ls --time-style=full-iso on binary/live ---
+total 929612
+-rw-r--r-- 1 root root     24449 2026-10-30 23:44:34.000000000 +0300 filesystem.packages
+-rw-r--r-- 1 root root 838868992 2026-10-30 23:44:34.000000000 +0300 filesystem.squashfs
+-rw-r--r-- 2 root root  44353392 2026-10-30 23:44:34.000000000 +0300 initrd.img
+-rw-r--r-- 2 root root  44353392 2026-10-30 23:44:34.000000000 +0300 initrd.img-6.12.113+deb13-amd64
+-rw-r--r-- 2 root root  12154816 2026-10-15 18:02:11.000000000 +0300 vmlinuz
+-rw-r--r-- 2 root root  12154816 2026-10-15 18:02:11.000000000 +0300 vmlinuz-6.12.113+deb13-amd64
+
+=== 2. what the log says about appending and about the very end ===
+--- last 25 lines of the log ---
+P: Deconfiguring file /etc/resolv.conf
+[2026-10-31 01:18:10] lb chroot_hosts remove
+P: Deconfiguring file /etc/hosts
+[2026-10-31 01:18:10] lb chroot_sysv-rc remove
+P: Deconfiguring file /usr/sbin/policy-rc.d
+[2026-10-31 01:18:10] lb chroot_tmpfs remove
+[2026-10-31 01:18:11] lb chroot_dpkg remove
+P: Deconfiguring file /sbin/start-stop-daemon
+[2026-10-31 01:18:11] lb chroot_prep remove devpts proc selinuxfs sysfs
+[2026-10-31 01:18:11] lb chroot_sysfs remove
+P: Begin unmounting /sys...
+[2026-10-31 01:18:12] lb chroot_selinuxfs remove
+[2026-10-31 01:18:12] lb chroot_proc remove
+P: Begin unmounting /proc...
+[2026-10-31 01:18:12] lb chroot_devpts remove
+P: Begin unmounting /dev/pts...
+P: Binary stage completed
+P: Begin unmounting filesystems...
+P: Saving caches...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+[2026-10-31 01:18:13] lb source 
+P: Source stage disabled, skipping
+P: Build completed successfully
+--- every chroot_prep line with its timestamp ---
+683:[2026-10-31 00:00:35] lb chroot_prep install all mode-archives-chroot
+4146:[2026-10-31 00:30:17] lb chroot_prep remove all mode-archives-chroot
+4199:[2026-10-31 00:38:01] lb chroot_prep install all mode-archives-chroot
+4301:[2026-10-31 00:43:31] lb chroot_prep remove all mode-archives-chroot
+4354:[2026-10-31 00:49:04] lb chroot_prep install devpts proc selinuxfs sysfs
+4362:[2026-10-31 00:49:06] lb chroot_prep install dpkg tmpfs sysv-rc hosts resolv hostname apt mode-apt-install-binary mode-archives-chroot
+4535:[2026-10-31 01:02:42] lb chroot_prep remove all mode-archives-binary
+4578:[2026-10-31 01:10:39] lb chroot_prep install all mode-archives-binary
+5024:[2026-10-31 01:18:09] lb chroot_prep remove dpkg tmpfs sysv-rc hosts resolv hostname apt
+5039:[2026-10-31 01:18:11] lb chroot_prep remove devpts proc selinuxfs sysfs
+
+=== 3. who creates chroot/chroot and what Chroot() does ===
+/usr/lib/live/build/installer_preseed:41:   ls chroot/chroot/root/packages.installer > /dev/null 2>&1
+/usr/lib/live/build/installer_preseed:47:	for _FILE in config/preseed/*.cfg config/preseed/*.cfg.installer chroot/chroot/root/packages.installer
+/usr/lib/live/build/binary_chroot:61:rm -rf chroot/chroot
+/usr/lib/live/build/binary_chroot:69:	touch chroot/chroot.cache
+/usr/lib/live/build/binary_chroot:74:mv chroot.tmp chroot/chroot
+/usr/lib/live/build/binary_chroot:81:			cp config/rootfs/excludes chroot/chroot/excludes
+/usr/lib/live/build/binary_chroot:83:			chroot chroot/chroot /usr/bin/env -i xargs --arg-file=/excludes -I FILE bash -c 'rm -rf FILE'
+/usr/lib/live/build/binary_chroot:84:			rm -f chroot/chroot/excludes
+/usr/lib/live/build/binary_rootfs:91:				DU_DIM="$(du -ms chroot/chroot | cut -f1)"
+/usr/lib/live/build/binary_rootfs:92:				INODES="$(find chroot/chroot | wc -l)"
+/usr/lib/live/build/binary_rootfs:124:				cp -a chroot/chroot/* filesystem.tmp
+/usr/lib/live/build/binary_rootfs:136:				du -B 1 -s chroot/chroot | cut -f1 > binary/${INITFS}/filesystem.size
+/usr/lib/live/build/binary_rootfs:141:				if [ -e chroot/chroot.cache ]
+/usr/lib/live/build/binary_rootfs:144:					mv chroot/chroot chroot.tmp
+/usr/lib/live/build/binary_rootfs:155:					rm -rf chroot/chroot
+/usr/lib/live/build/binary_rootfs:207:				if [ -e chroot/chroot.cache ]
+/usr/lib/live/build/binary_rootfs:210:					mv chroot/chroot chroot.tmp
+/usr/lib/live/build/binary_rootfs:221:					rm -rf chroot/chroot
+/usr/lib/live/build/binary_rootfs:242:				if [ -e chroot/chroot.cache ]
+/usr/lib/live/build/binary_rootfs:247:					cp -a chroot/chroot/boot chroot
+--- Chroot() definition ---
+/usr/share/live/build/functions/chroot_bind_path.sh:18:Chroot_try_bind_path ()
+/usr/share/live/build/functions/chroot_bind_path.sh:39:Chroot_try_unbind_path ()
+/usr/share/live/build/functions/chroot_bind_path.sh:63:Chroot_try_bind_path_from_list ()
+/usr/share/live/build/functions/chroot_bind_path.sh:74:Chroot_try_unbind_path_from_list ()
+/usr/share/live/build/functions/chroot.sh:12:Chroot ()
+/usr/share/live/build/functions/chroot.sh:37:Chroot_has_package() {
+/usr/share/live/build/functions/chroot.sh:48:Chroot_package_list() {
+/usr/share/live/build/functions/chroot.sh:54:Chroot_copy_dir() {
+--- binary/live dir contents at the top level ---
+/bin /boot /dev /etc /home /lib /media /mnt /proc /root /run /sbin /srv /sys /tmp /usr /var /vmlinuz 
+--- chroot top level now ---
+bin boot dev etc home initrd.img lib lib64 media mnt opt proc root run sbin srv sys tmp usr var vmlinuz 
+--- chroot/chroot now? ---
+(no chroot/chroot)
+
+=== 4. what the ISO actually ships ===
+total 929600
+-r--r--r-- 1 root root     24449 2026-10-30 23:44:34.000000000 +0300 filesystem.packages
+-r--r--r-- 1 root root 838868992 2026-10-30 23:44:34.000000000 +0300 filesystem.squashfs
+-r--r--r-- 2 root root  44353392 2026-10-30 23:44:34.000000000 +0300 initrd.img
+-r--r--r-- 2 root root  44353392 2026-10-30 23:44:34.000000000 +0300 initrd.img-6.12.113+deb13-amd64
+-r--r--r-- 2 root root  12154816 2026-10-15 18:02:11.000000000 +0300 vmlinuz
+-r--r--r-- 2 root root  12154816 2026-10-15 18:02:11.000000000 +0300 vmlinuz-6.12.113+deb13-amd64
+--- sha256 of the squashfs inside the ISO vs binary/live ---
+f2f7d1ee9e18569eaed4fec586ace41dea4aefaf681509a6654502b77cc61dc8  /mnt/m1iso/live/filesystem.squashfs
+f2f7d1ee9e18569eaed4fec586ace41dea4aefaf681509a6654502b77cc61dc8  /root/phantomos-m1/live/binary/live/filesystem.squashfs
+--- /opt and apt sources inside the ISO's squashfs ---
+0

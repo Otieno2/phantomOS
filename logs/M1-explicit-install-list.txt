@@ -1,0 +1,140 @@
+=== 1. live-build's accumulated explicit-install list ===
+/root/phantomos-m1/live/config/packages:
+total 0
+
+/root/phantomos-m1/live/config/packages.binary:
+total 0
+
+/root/phantomos-m1/live/config/packages.chroot:
+total 0
+--- config/packages.chroot ---
+--- config/packages (if a file) ---
+/root/phantomos-m1/live/config/packages: directory
+--- the copy that went into the chroot ---
+
+=== 2. which live-build stage writes into packages.chroot ===
+/usr/lib/live/build/chroot_package-lists:74:			| grep -v '^#' >> chroot/root/packages.chroot || true
+/usr/lib/live/build/chroot_package-lists:79:for _PACKAGE_ARCHITECTURE in $(Discover_package_architectures "chroot/root/packages.chroot")
+/usr/lib/live/build/chroot_install-packages:74:if [ -e chroot/root/packages.chroot ] && [ -s chroot/root/packages.chroot ]
+/usr/lib/live/build/chroot_install-packages:88:			Chroot chroot "xargs ${_INSTALL_ONE_BY_ONE} --arg-file=/root/packages.chroot apt-get ${APT_OPTIONS} install"
+/usr/lib/live/build/chroot_install-packages:92:			Chroot chroot "xargs ${_INSTALL_ONE_BY_ONE} --arg-file=/root/packages.chroot aptitude ${APTITUDE_OPTIONS} install"
+/usr/lib/live/build/chroot_install-packages:97:	rm -f chroot/root/packages.chroot
+--- firmware stages ---
+binary_linux-image
+binary_syslinux
+chroot_firmware
+chroot_linux-image
+chroot_selinuxfs
+--- what the firmware stage installs ---
+#!/bin/sh
+
+## live-build(7) - System Build Scripts
+## Copyright (C) 2016-2020 The Debian Live team
+## Copyright (C) 2006-2015 Daniel Baumann <mail@daniel-baumann.ch>
+##
+## This program comes with ABSOLUTELY NO WARRANTY; for details see COPYING.
+## This is free software, and you are welcome to redistribute it
+## under certain conditions; see COPYING for details.
+
+
+set -e
+
+# Including common functions
+[ -e "${LIVE_BUILD}/scripts/build.sh" ] && . "${LIVE_BUILD}/scripts/build.sh" || . /usr/lib/live/build.sh
+
+# Setting static variables
+DESCRIPTION="Schedule firmware packages for installation"
+USAGE="${PROGRAM} [--force]"
+
+# Processing arguments and configuration files
+Init_config_data "${@}"
+
+if [ "${LB_FIRMWARE_CHROOT}" != "true" ]
+then
+	exit 0
+fi
+
+Echo_message "Begin scheduling firmware installation..."
+
+# Requiring stage file
+Require_stagefiles config bootstrap
+
+# Checking stage file
+Check_stagefile
+
+# Acquire lock file
+Acquire_lockfile
+
+# Checking depends
+Check_package host /usr/bin/wget wget
+
+# Diverting update-initramfs
+#case "${LB_INITRAMFS}" in
+#	live-boot)
+#		mv chroot/usr/sbin/update-initramfs chroot/usr/sbin/update-initramfs.live-build
+#		;;
+#esac
+
+# Include firmware packages
+
+# Get all firmware packages names
+
+FIRMWARE_PACKAGES=""
+
+# Manually add firmware-linux meta package if available
+if [ $(Check_package_available "firmware-linux") -eq 1 ]
+then
+	FIRMWARE_PACKAGES="${FIRMWARE_PACKAGES} firmware-linux"
+fi
+
+=== 3. does anything upstream name indi-dsi or alsa-topology-conf? ===
+--- and in the tree's own config? ---
+
+=== 4. the two install passes: what each was asked for ===
+[2026-10-31 00:07:16] lb chroot_install-packages install
+P: Begin installing packages (install pass)...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+systemd-sysv is already the newest version (257.13-1~deb13u1).
+The following additional packages will be installed:
+  adwaita-icon-theme apparmor apt-listchanges at-spi2-common bamfdaemon
+  binutils binutils-common binutils-x86-64-linux-gnu bsdextrautils bubblewrap
+  build-essential busybox bzip2 ca-certificates cpp cpp-14
+  cpp-14-x86-64-linux-gnu cpp-x86-64-linux-gnu cryptsetup cryptsetup-bin dbus
+  dbus-bin dbus-daemon dbus-session-bus-common dbus-system-bus-common
+  dbus-user-session dconf-gsettings-backend dconf-service desktop-file-utils
+  dictionaries-common dirmngr distro-info-data dmeventd dmsetup dpkg-dev
+  dracut-install emacsen-common exo-utils firefox-esr flatpak fontconfig
+  fontconfig-config fonts-dejavu-core fonts-dejavu-mono fonts-inter
+  fonts-jetbrains-mono fonts-montserrat fuse3 g++ g++-14
+  g++-14-x86-64-linux-gnu g++-x86-64-linux-gnu gcc gcc-14
+  gcc-14-x86-64-linux-gnu gcc-x86-64-linux-gnu gdal-data gdal-plugins git
+  git-man gnupg gnupg-l10n gpg gpg-agent gpgconf gpgsm groff-base
+--- the live pass header ---
+[2026-10-31 00:29:27] lb chroot_install-packages live
+P: Begin installing packages (live pass)...
+Reading package lists...
+Building dependency tree...
+Reading state information...
+live-boot is already the newest version (1:20250815~deb13u1).
+live-config is already the newest version (11.0.5).
+live-config-systemd is already the newest version (11.0.5).
+systemd-sysv is already the newest version (257.13-1~deb13u1).
+phantomos-base is already the newest version (0.1.0-1).
+phantomos-desktop is already the newest version (0.1.0-1).
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+Reading package lists...
+Building dependency tree...
+Reading state information...
+[2026-10-31 00:29:33] lb chroot_includes_after_packages 
+P: Begin copying chroot includes after packages have been installed...
+[2026-10-31 00:29:34] lb chroot_hooks 
+P: Begin executing hooks...
+
+=== 5. the seven: what pulls them according to the archive (Recommends/Suggests of named packages) ===
+--- who Recommends/Depends on linux-image-amd64? ---
+--- who Recommends/Depends on firmware-linux-free? ---
+--- who Recommends/Depends on wireless-regdb? ---
+--- who Recommends/Depends on alsa-topology-conf? ---
+--- who Recommends/Depends on indi-dsi? ---

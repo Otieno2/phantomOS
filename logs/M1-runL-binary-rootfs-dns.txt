@@ -1,0 +1,645 @@
+M1 run L — the milestone-closing attempt that did not close, 2026-10-31
+========================================================================
+
+Run L was launched detached at 2026-10-31T00:43:22Z to be the cold run §9.1 requires. It did not
+produce an ISO. Two independent faults stopped it, and only one of them was the network. All times
+below are UTC unless they are quoted from the build log, whose `[YYYY-MM-DD HH:MM:SS]` stamps are
+host-local EAT (UTC+3) — the convention §9.1 records, and the reason `04:31:53` in the log is
+`01:31:53Z` here.
+
+  launcher out : /root/phantomos-m1/logs/closing-run-2026-10-31T004322Z.out
+  lb build log : /root/phantomos-m1/logs/lb-build-2026-10-31T004330Z.log  (4548 lines)
+  config dump  : /root/phantomos-m1/logs/config-dump-2026-10-31T004330Z.txt (98 assignments)
+  lb build     : 2026-10-31T00:43:31Z .. 2026-10-31T01:31:53Z = 48 m 22 s, then died
+
+Raw evidence for every claim below is appended after §6, in sections A-K pulled straight off the
+build host.
+
+
+1. Fault one: build-iso.sh was edited while it was running, and bash died mid-script
+------------------------------------------------------------------------------------
+
+The launcher's own stdout (section A) ends like this:
+
+    === effective config of the tree about to be built ===
+      98 assignments -> /root/phantomos-m1/logs/config-dump-2026-10-31T004330Z.txt
+    /mnt/c/Users/INFINITY/OneDrive/Desktop/phantomOS/scripts/build-iso.sh: line 85: syntax error near unexpected token `('
+    /mnt/c/Users/INFINITY/OneDrive/Desktop/phantomOS/scripts/build-iso.sh: line 85: ` are optional (M1 ships none — see the header of scripts/build-packages.sh for why'
+
+That second line is prose. It is the tail of this comment, which in the file is prefixed `# Hooks`:
+
+    # Hooks are optional (M1 ships none — see the header of scripts/build-packages.sh for why
+
+bash executes a script from one open fd and a byte offset it maintains itself, re-reading as it
+goes. The artifact-loss fix (the `artifacts/` exclusion and the `find … -name '*.iso' -exec mv`
+above it) was written into `scripts/build-iso.sh` while run L was inside `lb build`, and it
+lengthened the file above the point bash had reached. The next `read()` landed in the middle of
+that comment, bash parsed a fragment of a sentence as shell, and the shell exited. The reported
+line number is bash's own counter after the jump and does not correspond to line 85 of either
+version of the file — the *text* is what identifies where the offset fell.
+
+`lb build` was already a running child, so it was orphaned rather than killed and went on for
+another 40 minutes. What was lost is everything bash would have done afterwards:
+
+  * `cp "$BUILD_LOG" "$REPO/logs/$LOGNAME"` — the build log was never copied into the repository.
+    It survives only because `$WORK/logs` is excluded from `rsync --delete`; this is the second
+    time that exclusion has been the only thing standing between a run and its evidence.
+  * the `artifacts/$START/` move, the size, the SHA256 and `logs/M1-artifact-$START.txt`.
+  * `exit $RC`, so the launcher recorded no exit status at all.
+
+The failure was found by reading `$WORK/logs` by hand, which is exactly how §11 says a milestone
+should not be closed. Fixed in `scripts/build-iso.sh`: the script now copies itself to
+`$WORK/.build-iso.running.sh`, excludes that path from the rsync, and `exec`s the copy, so the
+repo's version is inert data for the rest of the run.
+
+
+2. Fault two: WSL's resolver died again, 249 kB from an ISO
+-----------------------------------------------------------
+
+The log's last stage is `binary_rootfs` (section B, lines 4515-4548, quoted in full in the raw
+appendix):
+
+    [2026-10-31 04:31:53] lb binary_rootfs
+    P: Begin building root filesystem image...
+    The following NEW packages will be installed:
+      liblzo2-2 squashfs-tools
+    Need to get 249 kB of archives.
+    Ign:1 … liblzo2-2 …        (×5)
+    Ign:2 … squashfs-tools …   (×5)
+    Err:1 … liblzo2-2
+      Temporary failure resolving 'deb.debian.org'
+    Err:2 … squashfs-tools
+      Temporary failure resolving 'deb.debian.org'
+    E: An unexpected failure occurred, exiting...
+
+The five `Ign:`/`Err:` pairs are `Acquire::Retries "5"` from `live/config/apt/apt.conf` doing
+exactly what it was added to do after run K, and the outage outlasting it — the same conclusion
+that file's header already refuses to claim otherwise.
+
+`/usr/lib/live/build/binary_rootfs`, squashfs branch (section F):
+
+    Check_package chroot /usr/share/doc/squashfs-tools squashfs-tools
+    Restore_package_cache binary
+    Install_packages
+
+so the last thing every build does before `mksquashfs` is an apt install into the build chroot,
+and that install goes to the network whenever `cache/packages.binary` does not already hold the
+package.
+
+It did not. Measured before anything was changed: `find /root/phantomos-m1/live/cache -name
+'squashfs-tools*'` returned **zero** hits across all five caches, while `cache/packages.binary`
+held 25 `.deb`s — `xorriso`, `mtools`, `syslinux-common`, `grub-efi-*`, `shim-*`, `dosfstools`,
+`librsvg2-bin`, `gettext-base`, `isolinux`, `mokutil`, the `libburn4/libisoburn1/libisofs6/
+libjte2` set. Every one of those belongs to `binary_iso` or `binary_grub-efi`, whose
+`Save_package_cache binary` runs *before* their `Remove_packages`. `binary_rootfs` saves at line
+378, after `Remove_packages` at 345 (section H). Whether that ordering is why its helper never
+lands is **not established** — `Save_package_cache` also runs `apt-get autoclean` first, and the
+`Del` lines in section K show autoclean discarding cached image `.deb`s (`linux-image` 108 MB,
+`firefox-esr` 79.9 MB among them) during the binary cycle. What is established is the outcome:
+the one package the build needs at its most expensive moment was the one package no cache held.
+
+This is the same failure class as run K (`logs/M1-runK-rootfs-iso-failure.txt`), which died one
+stage earlier in `chroot_archives binary remove`. Two consecutive milestone-closing attempts, both
+lost to a resolver outage, both after 48+ minutes.
+
+
+3. Run L was genuinely cold, and that part of it is not wasted
+--------------------------------------------------------------
+
+§9.1's cold test is "does debootstrap run". It ran:
+
+  * `bootstrap_cache restore` at 03:43:31, then `bootstrap_debootstrap` at 03:43:32, then
+    `P: Running debootstrap (download-only)...`, `I: Retrieving InRelease`,
+    `I: Valid Release signature (key id 41587F7DB8C774BCCF131416762F67A0B2C39DE4)`, and the
+    per-package `I: Validating …` lines (section E2).
+  * `grep -n 'Skipping\|already done\|Restoring'` over all 4548 lines returns **nothing**
+    (section E3). Run K's shortcut signature, `W: Skipping bootstrap, already done`, is absent.
+  * 8 m 10 s between `bootstrap_debootstrap` (03:43:32) and `bootstrap_cache save` (03:51:42),
+    and `cache/bootstrap`'s mtime is 03:51:42 — the save, not a restore.
+
+The tree is also resumable, unlike run K's. `binary_rootfs` failed inside `Install_packages`,
+before line 277's `rm -f binary/${INITFS}/filesystem.squashfs`, so nothing had been moved or
+deleted (section D): `binary_rootfs` stamp absent, `binary_chroot` and `bootstrap` stamps present,
+`chroot/chroot` intact, `chroot.cache` marker present, `binary/live` empty, zero `phantomos`
+entries in `/proc/mounts`.
+
+
+4. What run L measured about downloading — the answer to "would caching make this faster?"
+------------------------------------------------------------------------------------------
+
+The whole 4548-line log contains **one** `Fetched` line:
+
+    726:Fetched 17.8 MB in 31s (580 kB/s)
+
+and every `Get:` line in the log is an index or an entry from our own bound pool — `InRelease`,
+`Packages`, `Sources`, `Translation-en`, and `file:/opt/phantomos-build/pool ./ InRelease`.
+**Run L downloaded no `.deb` from the network at all.** (An earlier reading of this log counted
+"10 `.deb` Get: lines" by grepping for `.deb`, which matched `deb.debian.org`; that count was
+wrong and is not repeated here.)
+
+The 17.8 MB breaks down as (section B): `trixie/main Sources` 10.5 MB, `trixie/main
+Translation-en` 6486 kB, `trixie-security` InRelease/Packages/Sources/Translation 1.0 MB,
+`trixie-updates` 60 kB, `trixie InRelease` and the rest. Two of those — `Sources` and
+`Translation-en`, 17.0 MB of the 17.8 MB — are indices the build never reads a package out of:
+`--apt-source-archives true` is in the effective config (section A) and nothing in this project
+runs `apt-get source`, and `Translation-en` only supplies long descriptions.
+
+Meanwhile `chroot_install-packages install` ran 03:53:07 → 04:04:51 (**11 m 44 s**) and installed
+the whole desktop set with **no `Fetched` line at all**, because `Restore_package_cache chroot`
+had already copied `cache/packages.chroot` (574 MB) into `chroot/var/cache/apt/archives` and apt
+found every `.deb` on disk. `cache/packages.chroot`'s mtime is 2026-10-30 23:31 — *before* run L
+started — so run L added nothing to it: the package cache was already complete and simply served
+the build.
+
+So the honest answer is that package caching is already done and already total. The wall clock
+went somewhere else. From the stage timestamps (section B):
+
+    bootstrap_debootstrap        03:43:32 → 03:51:42    8 m 10 s
+    chroot_archives install #1   03:51:59 → 03:52:56       57 s
+    chroot_install-packages      03:53:07 → 04:04:51   11 m 44 s   (no download)
+    chroot_archives remove  #1   04:05:47 → 04:09:52    4 m 05 s
+    chroot_archives install #2   04:10:33 → 04:19:00    8 m 27 s
+    chroot_archives remove  #2   04:19:01 → 04:23:02    4 m 01 s
+    chroot_archives install #3   04:23:37 → 04:31:53    8 m 16 s   (binary cycle)
+                                                          -------
+                     five chroot_archives invocations    25 m 46 s  of the 48 m 22 s
+
+Over half the run was `chroot_archives`, i.e. `apt-get update`, and since almost nothing was
+downloaded, that time is apt *parsing and caching* the same 17 MB of indices five times on a
+2016 dual-core i5-6200U — plus, in the last two cycles, retries against a resolver that was
+already failing (`Ign:` ×100, `Err:` ×20 across the log). A caching proxy does not remove parsing
+cost; removing the two unread indices does.
+
+
+5. What was changed as a result
+-------------------------------
+
+* `scripts/seed-binary-cache.sh` (new). Derives the package from `binary_rootfs`'s own
+  `Check_package` line and its dependencies from `apt-cache depends`, downloads them with
+  `apt-get download`, and copies them into `$WORK/live/cache/packages.binary` so
+  `Restore_package_cache binary` serves them from disk. It refuses to copy if the filename
+  `apt-get download` produced differs from the filename apt itself used during a real install,
+  because apt only reuses a cached `.deb` whose name is the one it would have downloaded. That
+  check was not decoration: it showed the convention is mixed — `liblzo2-2_2.10-3+b1_amd64.deb`
+  with a **literal `+`**, matching the file `Save_package_cache` moved out of a live chroot, while
+  the epoch is encoded, `squashfs-tools_1%3a4.6.1-1_amd64.deb` and
+  `zlib1g_1%3a1.3.dfsg+really1.3.1-1+b1_amd64.deb`. Run L's error text quoted
+  `liblzo2-2_2.10-3%2bb1_amd64.deb`, which is the *URI* form, not the on-disk form; seeding from
+  the URI would have produced files apt never reads. Output: `logs/M1-binary-cache-seed.txt`.
+  After it ran, `cache/packages.binary` holds 32 `.deb`s, 19 MB.
+
+  The seed is build-side only. `squashfs-tools`, `xorriso`, `mtools` and `dosfstools` are all
+  absent from `logs/M1-image-installed-raw.txt`, the 838 packages dpkg reports inside the shipped
+  squashfs; `liblzo2-2` is present there because the image needs it independently.
+
+  Residual exposure, not hidden: apt reuses a cached `.deb` only when it matches the candidate
+  version, so a Debian release between the seed and the build's own `apt-get update` reopens the
+  hole for that one package. The seed is additive and re-derived each run, so the window is the
+  time since the last seed rather than permanent.
+
+* `scripts/build-iso.sh` now re-execs a private copy of itself under `$WORK` (§1 above).
+
+**Proven by run, not yet.** The seed's claim — that `binary_rootfs` installs `squashfs-tools`
+without touching the network — is confirmed or refuted by the next build log: it must contain no
+`Get:`/`Ign:`/`Err:` line naming `squashfs-tools` and must reach `P: Preparing squashfs image...`.
+Until that log exists this file records an intention with a mechanism, not a result.
+
+
+6. Also recorded here because it is the second time
+----------------------------------------------------
+
+`rsync --delete` in `build-iso.sh` has now twice been the only reason a run's evidence survived:
+once for the pool-ordering failure log (§9.1), once here for `lb-build-2026-10-31T004330Z.log`.
+`$WORK/logs` being excluded is load-bearing, and it is easy to break by tidying the exclusion
+list. Run output goes under `$WORK/logs` with timestamped names for that reason and no other.
+
+
+
+========================================================================
+RAW EVIDENCE, pulled from the build host 2026-11-01
+========================================================================
+########## A. the detached launcher's own stdout (/root/phantomos-m1/logs/closing-run-2026-10-31T004322Z.out) ##########
+[2026-10-31 03:43:25] lb config 
+P: Executing auto/config script.
+[2026-10-31 03:43:25] lb config noauto --mode debian --system live --initsystem systemd --ignore-system-defaults --architectures amd64 --distribution trixie --archive-areas main --security true --updates true --backports false --proposed-updates false --keyring-packages debian-archive-keyring --binary-images iso-hybrid --binary-filesystem fat32 --checksums sha256 --zsync false --net-tarball true --memtest none --chroot-filesystem squashfs --chroot-squashfs-compression-type xz --initramfs live-boot --initramfs-compression gzip --apt apt --apt-secure true --apt-recommends false --apt-indices true --apt-source-archives true --debconf-frontend noninteractive --debconf-priority critical --debian-installer none --bootappend-live boot=live components quiet splash --linux-flavours amd64 --linux-packages linux-image --firmware-chroot false --uefi-secure-boot auto --source false
+P: Updating config tree for a debian/trixie/amd64 system
+P: Symlinking hooks...
+  2 entries -> phantomos.list.chroot
+  4 entries -> live.list.chroot
+dpkg-deb: building package 'phantomos-release' in '/opt/phantomos-build/pool/phantomos-release_0.1.0-1_all.deb'.
+built phantomos-release_0.1.0-1_all.deb (2824 bytes)
+dpkg-deb: building package 'phantomos-config' in '/opt/phantomos-build/pool/phantomos-config_0.1.0-1_all.deb'.
+built phantomos-config_0.1.0-1_all.deb (1564 bytes)
+dpkg-deb: building package 'phantomos-base' in '/opt/phantomos-build/pool/phantomos-base_0.1.0-1_all.deb'.
+built phantomos-base_0.1.0-1_all.deb (1032 bytes)
+dpkg-deb: building package 'phantomos-desktop' in '/opt/phantomos-build/pool/phantomos-desktop_0.1.0-1_all.deb'.
+built phantomos-desktop_0.1.0-1_all.deb (1032 bytes)
+pool signed: InRelease Packages Packages.gz phantomos-base_0.1.0-1_all.deb phantomos-config_0.1.0-1_all.deb phantomos-desktop_0.1.0-1_all.deb phantomos-release_0.1.0-1_all.deb Release Release.gpg 
+=== effective config of the tree about to be built ===
+  98 assignments -> /root/phantomos-m1/logs/config-dump-2026-10-31T004330Z.txt
+/mnt/c/Users/INFINITY/OneDrive/Desktop/phantomOS/scripts/build-iso.sh: line 85: syntax error near unexpected token `('
+/mnt/c/Users/INFINITY/OneDrive/Desktop/phantomOS/scripts/build-iso.sh: line 85: ` are optional (M1 ships none — see the header of scripts/build-packages.sh for why'
+
+########## B. lb build log: /root/phantomos-m1/logs/lb-build-2026-10-31T004330Z.log (4548 lines) ##########
+---- first 3 lines ----
+[2026-10-31 03:43:31] lb build 
+P: live-build 20250505+deb13u1
+P: Building for a debian/trixie/amd64 system
+---- the only 'Fetched' line in the whole log ----
+726:Fetched 17.8 MB in 31s (580 kB/s)
+---- counts of apt's progress prefixes ----
+Get: 29
+Ign: 100
+Hit: 4
+Err: 20
+---- Get: lines matching '\.deb' — BOGUS FILTER, it matched 'deb.debian.org', not .deb files.
+---- Kept as the record of the mistake §4 corrects. The truth is that no Get: line below is a
+---- .deb at all: every one is an index (InRelease/Packages/Sources/Translation-en) or an entry
+---- from our own bound pool. Run L fetched zero .debs from the network.
+Get:3 http://security.debian.org trixie-security InRelease [43.4 kB]
+Get:5 http://deb.debian.org/debian trixie-updates InRelease [47.3 kB]
+Get:6 http://security.debian.org trixie-security/main Sources [247 kB]
+Get:7 http://deb.debian.org/debian trixie/main Sources [10.5 MB]
+Get:8 http://security.debian.org trixie-security/main amd64 Packages [292 kB]
+Get:9 http://security.debian.org trixie-security/main Translation-en [175 kB]
+Get:10 http://deb.debian.org/debian trixie/main Translation-en [6486 kB]
+Get:11 http://deb.debian.org/debian trixie-updates/main Sources [1396 B]
+Get:12 http://deb.debian.org/debian trixie-updates/main amd64 Packages [1108 B]
+Get:13 http://deb.debian.org/debian trixie-updates/main Translation-en [1032 B]
+---- every stage timestamp ----
+1:[2026-10-31 03:43:31] lb build 
+4:[2026-10-31 03:43:31] lb bootstrap 
+6:[2026-10-31 03:43:31] lb bootstrap_cache restore
+7:[2026-10-31 03:43:32] lb bootstrap_debootstrap 
+673:[2026-10-31 03:51:42] lb bootstrap_cache save
+680:[2026-10-31 03:51:55] lb chroot 
+682:[2026-10-31 03:51:55] lb chroot_cache restore
+683:[2026-10-31 03:51:55] lb chroot_prep install all mode-archives-chroot
+684:[2026-10-31 03:51:56] lb chroot_devpts install
+686:[2026-10-31 03:51:56] lb chroot_proc install
+688:[2026-10-31 03:51:56] lb chroot_selinuxfs install
+689:[2026-10-31 03:51:56] lb chroot_sysfs install
+691:[2026-10-31 03:51:57] lb chroot_debianchroot install
+693:[2026-10-31 03:51:57] lb chroot_dpkg install
+696:[2026-10-31 03:51:57] lb chroot_tmpfs install
+697:[2026-10-31 03:51:57] lb chroot_sysv-rc install
+699:[2026-10-31 03:51:57] lb chroot_hosts install
+701:[2026-10-31 03:51:58] lb chroot_resolv install
+703:[2026-10-31 03:51:58] lb chroot_hostname install
+707:[2026-10-31 03:51:58] lb chroot_apt install
+709:[2026-10-31 03:51:59] lb chroot_archives chroot install
+782:[2026-10-31 03:52:56] lb chroot_linux-image 
+784:[2026-10-31 03:52:56] lb chroot_firmware 
+785:[2026-10-31 03:52:56] lb chroot_preseed 
+787:[2026-10-31 03:52:57] lb chroot_includes_before_packages 
+789:[2026-10-31 03:52:57] lb chroot_package-lists install
+820:[2026-10-31 03:53:07] lb chroot_install-packages install
+4040:[2026-10-31 04:04:51] lb chroot_package-lists live
+4073:[2026-10-31 04:05:11] lb chroot_install-packages live
+4088:[2026-10-31 04:05:16] lb chroot_includes_after_packages 
+4090:[2026-10-31 04:05:16] lb chroot_hooks 
+4121:[2026-10-31 04:05:22] lb chroot_hacks 
+4126:[2026-10-31 04:05:46] lb chroot_interactive 
+4127:[2026-10-31 04:05:46] lb chroot_prep remove all mode-archives-chroot
+4128:[2026-10-31 04:05:47] lb chroot_archives chroot remove
+4158:[2026-10-31 04:09:52] lb chroot_apt remove
+4160:[2026-10-31 04:09:52] lb chroot_hostname remove
+4163:[2026-10-31 04:09:52] lb chroot_resolv remove
+4165:[2026-10-31 04:09:53] lb chroot_hosts remove
+4167:[2026-10-31 04:09:53] lb chroot_sysv-rc remove
+4169:[2026-10-31 04:09:53] lb chroot_tmpfs remove
+4170:[2026-10-31 04:09:53] lb chroot_dpkg remove
+4172:[2026-10-31 04:09:53] lb chroot_debianchroot remove
+4174:[2026-10-31 04:09:53] lb chroot_sysfs remove
+4176:[2026-10-31 04:09:54] lb chroot_selinuxfs remove
+4177:[2026-10-31 04:09:54] lb chroot_proc remove
+4179:[2026-10-31 04:09:54] lb chroot_devpts remove
+4181:[2026-10-31 04:09:54] lb chroot_cache save
+4188:[2026-10-31 04:09:58] lb installer 
+4190:[2026-10-31 04:09:58] lb installer_chroot 
+4192:[2026-10-31 04:10:30] lb chroot_prep install all mode-archives-chroot
+4193:[2026-10-31 04:10:30] lb chroot_devpts install
+4195:[2026-10-31 04:10:30] lb chroot_proc install
+4197:[2026-10-31 04:10:30] lb chroot_selinuxfs install
+4198:[2026-10-31 04:10:30] lb chroot_sysfs install
+4200:[2026-10-31 04:10:31] lb chroot_debianchroot install
+4202:[2026-10-31 04:10:31] lb chroot_dpkg install
+4205:[2026-10-31 04:10:32] lb chroot_tmpfs install
+4206:[2026-10-31 04:10:32] lb chroot_sysv-rc install
+4208:[2026-10-31 04:10:32] lb chroot_hosts install
+4210:[2026-10-31 04:10:32] lb chroot_resolv install
+4212:[2026-10-31 04:10:32] lb chroot_hostname install
+4216:[2026-10-31 04:10:33] lb chroot_apt install
+4218:[2026-10-31 04:10:33] lb chroot_archives chroot install
+4320:[2026-10-31 04:19:00] lb installer_debian-installer 
+4322:[2026-10-31 04:19:00] lb installer_preseed 
+4323:[2026-10-31 04:19:00] lb chroot_prep remove all mode-archives-chroot
+4324:[2026-10-31 04:19:01] lb chroot_archives chroot remove
+4354:[2026-10-31 04:23:02] lb chroot_apt remove
+4356:[2026-10-31 04:23:02] lb chroot_hostname remove
+4359:[2026-10-31 04:23:03] lb chroot_resolv remove
+4361:[2026-10-31 04:23:03] lb chroot_hosts remove
+4363:[2026-10-31 04:23:03] lb chroot_sysv-rc remove
+4365:[2026-10-31 04:23:03] lb chroot_tmpfs remove
+4366:[2026-10-31 04:23:03] lb chroot_dpkg remove
+4368:[2026-10-31 04:23:03] lb chroot_debianchroot remove
+4370:[2026-10-31 04:23:03] lb chroot_sysfs remove
+4372:[2026-10-31 04:23:04] lb chroot_selinuxfs remove
+4373:[2026-10-31 04:23:04] lb chroot_proc remove
+4375:[2026-10-31 04:23:04] lb chroot_devpts remove
+4383:[2026-10-31 04:23:08] lb binary 
+4385:[2026-10-31 04:23:08] lb binary_chroot 
+4388:[2026-10-31 04:23:35] lb chroot_prep install devpts proc selinuxfs sysfs
+4389:[2026-10-31 04:23:35] lb chroot_devpts install
+4391:[2026-10-31 04:23:36] lb chroot_proc install
+4393:[2026-10-31 04:23:36] lb chroot_selinuxfs install
+4394:[2026-10-31 04:23:36] lb chroot_sysfs install
+4396:[2026-10-31 04:23:36] lb chroot_prep install dpkg tmpfs sysv-rc hosts resolv hostname apt mode-apt-install-binary mode-archives-chroot
+4397:[2026-10-31 04:23:36] lb chroot_dpkg install
+4400:[2026-10-31 04:23:36] lb chroot_tmpfs install
+4401:[2026-10-31 04:23:36] lb chroot_sysv-rc install
+4403:[2026-10-31 04:23:36] lb chroot_hosts install
+4405:[2026-10-31 04:23:37] lb chroot_resolv install
+4407:[2026-10-31 04:23:37] lb chroot_hostname install
+4411:[2026-10-31 04:23:37] lb chroot_apt install-binary
+4413:[2026-10-31 04:23:37] lb chroot_archives chroot install
+4515:[2026-10-31 04:31:53] lb binary_rootfs 
+---- lines 4505-4548 verbatim (the failure) ----
+Del tzdata 2026f-0+deb13u1 [268 kB]
+Del libpcre2-8-0 10.46-1~deb13u3 [299 kB]
+Del xserver-xorg-core 2:21.1.16-1.3+deb13u4 [3779 kB]
+Del libcurl4t64 8.14.1-2+deb13u7 [392 kB]
+Del libheif1 1.23.6-2~deb13u1 [828 kB]
+Del xserver-common 2:21.1.16-1.3+deb13u4 [2410 kB]
+Del libheif-plugin-libde265 1.23.6-2~deb13u1 [20.9 kB]
+Del openssl 3.5.7-1~deb13u3 [1508 kB]
+Del libbrotli1 1.1.0-2+deb13u1 [304 kB]
+Del liblzma5 5.8.1-1+deb13u2 [310 kB]
+[2026-10-31 04:31:53] lb binary_rootfs 
+P: Begin building root filesystem image...
+Reading package lists...
+Building dependency tree...
+The following additional packages will be installed:
+  liblzo2-2
+The following NEW packages will be installed:
+  liblzo2-2 squashfs-tools
+0 upgraded, 2 newly installed, 0 to remove and 0 not upgraded.
+Need to get 249 kB of archives.
+After this operation, 683 kB of additional disk space will be used.
+Ign:1 http://deb.debian.org/debian trixie/main amd64 liblzo2-2 amd64 2.10-3+b1
+Ign:2 http://deb.debian.org/debian trixie/main amd64 squashfs-tools amd64 1:4.6.1-1
+Ign:1 http://deb.debian.org/debian trixie/main amd64 liblzo2-2 amd64 2.10-3+b1
+Ign:2 http://deb.debian.org/debian trixie/main amd64 squashfs-tools amd64 1:4.6.1-1
+Ign:1 http://deb.debian.org/debian trixie/main amd64 liblzo2-2 amd64 2.10-3+b1
+Ign:2 http://deb.debian.org/debian trixie/main amd64 squashfs-tools amd64 1:4.6.1-1
+Ign:1 http://deb.debian.org/debian trixie/main amd64 liblzo2-2 amd64 2.10-3+b1
+Ign:2 http://deb.debian.org/debian trixie/main amd64 squashfs-tools amd64 1:4.6.1-1
+Ign:1 http://deb.debian.org/debian trixie/main amd64 liblzo2-2 amd64 2.10-3+b1
+Ign:2 http://deb.debian.org/debian trixie/main amd64 squashfs-tools amd64 1:4.6.1-1
+Err:1 http://deb.debian.org/debian trixie/main amd64 liblzo2-2 amd64 2.10-3+b1
+  Temporary failure resolving 'deb.debian.org'
+Err:2 http://deb.debian.org/debian trixie/main amd64 squashfs-tools amd64 1:4.6.1-1
+  Temporary failure resolving 'deb.debian.org'
+E: Failed to fetch http://deb.debian.org/debian/pool/main/l/lzo2/liblzo2-2_2.10-3%2bb1_amd64.deb  Temporary failure resolving 'deb.debian.org'
+E: Failed to fetch http://deb.debian.org/debian/pool/main/s/squashfs-tools/squashfs-tools_4.6.1-1_amd64.deb  Temporary failure resolving 'deb.debian.org'
+E: Unable to fetch some archives, maybe run apt-get update or try with --fix-missing?
+E: An unexpected failure occurred, exiting...
+P: Begin unmounting filesystems...
+P: Saving caches...
+Reading package lists...
+Building dependency tree...
+Del librsvg2-bin 2.60.0+dfsg-1+deb13u1 [1955 kB]
+
+########## C. cache inventory — NOTE: captured AFTER seed-binary-cache.sh had run, so ##########
+##########    packages.binary reads 19M and the squashfs-tools find returns 1 hit.    ##########
+##########    At the time of the failure it was 15M / 25 .debs and the same find      ##########
+##########    returned 0 hits; that pre-seed measurement is the one §2 quotes.        ##########
+262M	/root/phantomos-m1/live/cache/bootstrap
+49M	/root/phantomos-m1/live/cache/contents.chroot
+19M	/root/phantomos-m1/live/cache/packages.binary
+48M	/root/phantomos-m1/live/cache/packages.bootstrap
+574M	/root/phantomos-m1/live/cache/packages.chroot
+---- squashfs-tools anywhere in cache/ ----
+  /root/phantomos-m1/live/cache/packages.binary/squashfs-tools_1%3a4.6.1-1_amd64.deb
+  (1 hits)
+
+########## D. tree state after the failure ##########
+binary/live entries: 0
+chroot/chroot exists: yes
+chroot.cache marker: yes
+binary_rootfs stamp: no
+binary_chroot stamp: yes
+bootstrap stamp: yes
+phantomos mounts in /proc/mounts: 0
+chroot/var/cache/apt/archives .deb count: 0
+
+########## E. the debootstrap line proving this run was cold ##########
+
+########## F. binary_rootfs's squashfs branch, verbatim ##########
+	squashfs)
+		# Checking depends
+		Check_package chroot /usr/share/doc/squashfs-tools squashfs-tools
+
+		# Restoring cache
+		Restore_package_cache binary
+
+		# Installing depends
+		Install_packages
+
+		Echo_message "Preparing squashfs image..."
+		Echo_message "This may take a while."
+
+		# Remove old squashfs image
+		if [ -f binary/${INITFS}/filesystem.squashfs ]
+		then
+			rm -f binary/${INITFS}/filesystem.squashfs
+		fi
+
+		# Remove stale squashfs image
+
+########## G. Restore_package_cache / Save_package_cache ##########
+#!/bin/sh
+
+## live-build(7) - System Build Scripts
+## Copyright (C) 2016-2020 The Debian Live team
+## Copyright (C) 2006-2015 Daniel Baumann <mail@daniel-baumann.ch>
+##
+## This program comes with ABSOLUTELY NO WARRANTY; for details see COPYING.
+## This is free software, and you are welcome to redistribute it
+## under certain conditions; see COPYING for details.
+
+
+Restore_package_cache ()
+{
+	local DIRECTORY="cache/packages.${1}"
+
+	if [ "${LB_CACHE}" = "true" ] && [ "${LB_CACHE_PACKAGES}" = "true" ]
+	then
+		if [ -e "${DIRECTORY}" ]
+		then
+			# Restore old cache
+			if [ "$(stat --printf %d ${DIRECTORY}/)" = "$(stat --printf %d chroot/var/cache/apt/archives/)" ]
+			then
+				# with hardlinks
+				find "${DIRECTORY}" -name "*.deb" -print0 | xargs -0 --no-run-if-empty cp -fl -t chroot/var/cache/apt/archives
+			else
+				# without hardlinks
+				find "${DIRECTORY}" -name "*.deb" -print0 | xargs -0 --no-run-if-empty cp -t chroot/var/cache/apt/archives
+			fi
+		fi
+	fi
+}
+
+Save_package_cache ()
+{
+	local DIRECTORY="cache/packages.${1}"
+
+	if [ "${LB_CACHE}" = "true" ] && [ "${LB_CACHE_PACKAGES}" = "true" ]
+	then
+		# Cleaning current cache
+		# In case of interrupted or incomplete builds, this may return an error,
+		# but we still do want to save the cache.
+		Chroot chroot "apt-get autoclean" || true
+
+		if ls chroot/var/cache/apt/archives/*.deb > /dev/null 2>&1
+		then
+			# Creating cache directory
+			mkdir -p "${DIRECTORY}"
+
+			# Saving new cache
+			local PACKAGE
+			for PACKAGE in chroot/var/cache/apt/archives/*.deb
+			do
+				if [ -e "${DIRECTORY}"/"$(basename ${PACKAGE})" ]
+				then
+					rm -f "${PACKAGE}"
+				else
+					mv "${PACKAGE}" "${DIRECTORY}"
+				fi
+			done
+		fi
+	else
+		# Purging current cache
+		rm -f chroot/var/cache/apt/archives/*.deb
+	fi
+}
+
+########## H. where Save_package_cache binary is called in binary_rootfs ##########
+78:		Restore_package_cache binary
+81:		Install_packages
+139:				Remove_packages
+173:		Save_package_cache binary
+181:		Restore_package_cache binary
+184:		Install_packages
+205:				Remove_packages
+231:		Save_package_cache binary
+253:					Remove_packages
+268:		Restore_package_cache binary
+271:		Install_packages
+345:				Remove_packages
+378:		Save_package_cache binary
+
+########## I. exit.sh's failure-path cache save ##########
+	rm -f "${STAGEFILES_DIR}"/chroot_selinuxfs
+	rm -f "${STAGEFILES_DIR}"/chroot_sysfs
+
+	Echo_message "Saving caches..."
+
+	# We can't really know at which part we're failing,
+	# but let's assume that if there's any binary stage file arround
+	# we are in binary stage.
+
+	if ls "${STAGEFILES_DIR}"/binary* > /dev/null 2>&1
+	then
+		Save_package_cache binary
+	else
+		Save_package_cache chroot
+	fi
+
+	return ${VALUE}
+}
+
+Exit_exit ()
+{
+########## E2. proof debootstrap ran for real (lines 5-40) ##########
+P: Setting up clean exit handler
+[2026-10-31 03:43:31] lb bootstrap_cache restore
+[2026-10-31 03:43:32] lb bootstrap_debootstrap 
+P: Begin bootstrapping system...
+P: If the following stage fails, the most likely cause of the problem is with your mirror configuration or a caching proxy.
+P: Running debootstrap (download-only)...
+I: Retrieving InRelease 
+I: Checking Release signature
+I: Valid Release signature (key id 41587F7DB8C774BCCF131416762F67A0B2C39DE4)
+I: Retrieving Packages 
+I: Validating Packages 
+I: Resolving dependencies of required packages...
+I: Resolving dependencies of base packages...
+I: Checking component main on http://deb.debian.org/debian...
+I: Validating adduser 3.152
+I: Validating apt 3.0.3
+I: Validating apt-utils 3.0.3
+I: Validating base-files 13.8+deb13u7
+I: Validating base-passwd 3.6.7
+I: Validating bash 5.2.37-2+b10
+I: Validating bsdutils 1:2.41.5-0+deb13u1
+I: Validating coreutils 9.7-3
+I: Validating cpio 2.15+dfsg-2
+I: Validating cron 3.0pl1-197
+I: Validating cron-daemon-common 3.0pl1-197
+I: Validating dash 0.5.12-12
+I: Validating debconf 1.5.91
+I: Validating debconf-i18n 1.5.91
+I: Validating debian-archive-keyring 2025.1
+I: Validating debianutils 5.23.2
+I: Validating dhcpcd-base 1:10.1.0-11+deb13u4
+I: Validating diffutils 1:3.10-4
+I: Validating dmidecode 3.6-2
+I: Validating dpkg 1.22.22
+I: Validating e2fsprogs 1.47.2-3+b12
+I: Validating fdisk 2.41.5-0+deb13u1
+
+########## E3. any 'Skipping' anywhere in the log ##########
+  (no Skipping/already-done/Restoring lines at all)
+
+########## J. what was cache/bootstrap before this run? (mtime) ##########
+/root/phantomos-m1/live/cache/bootstrap  mtime=2026-10-31 03:51:42.057048757 +0300
+/root/phantomos-m1/live/cache/packages.binary  mtime=2026-11-01 16:51:46.026765738 +0300
+/root/phantomos-m1/live/cache/packages.chroot  mtime=2026-10-30 23:31:46.524927946 +0300
+
+########## K. autoclean context: which stage emitted the Del lines at 4505-4514 ##########
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+Reading package lists...
+Building dependency tree...
+Calculating upgrade...
+0 upgraded, 0 newly installed, 0 to remove and 0 not upgraded.
+Reading package lists...
+Building dependency tree...
+Del librsvg2-2 2.60.0+dfsg-1+deb13u1 [1795 kB]
+Del libjxl0.11 0.11.2-0.1~deb13u3 [1133 kB]
+Del linux-image-6.12.113+deb13-amd64 6.12.113-1 [108 MB]
+Del libpng16-16t64 1.6.48-1+deb13u6 [283 kB]
+Del ca-certificates 20250419+deb13u1 [161 kB]
+Del linux-image-amd64 6.12.113-1 [1480 B]
+Del openssl-provider-legacy 3.5.7-1~deb13u3 [316 kB]
+Del libpcre2-16-0 10.46-1~deb13u3 [282 kB]
+Del firefox-esr 153.6.0esr-1~deb13u1 [79.9 MB]
+Del flatpak 1.16.6-1~deb13u3 [1557 kB]
+Del xdg-dbus-proxy 0.1.6-1+deb13u3 [26.1 kB]
+Del libssl3t64 3.5.7-1~deb13u3 [2458 kB]
+Del libexpat1 2.9.0-1~deb13u1 [126 kB]
+Del libcurl3t64-gnutls 8.14.1-2+deb13u7 [385 kB]
+Del libheif-plugin-dav1d 1.23.6-2~deb13u1 [23.4 kB]
+Del libevent-2.1-7t64 2.1.13-stable-1~deb13u1 [183 kB]
+Del linux-libc-dev 6.12.113-1 [3021 kB]
+Del xz-utils 5.8.1-1+deb13u2 [660 kB]
+Del tzdata 2026f-0+deb13u1 [268 kB]
+Del libpcre2-8-0 10.46-1~deb13u3 [299 kB]
+Del xserver-xorg-core 2:21.1.16-1.3+deb13u4 [3779 kB]
+Del libcurl4t64 8.14.1-2+deb13u7 [392 kB]
+Del libheif1 1.23.6-2~deb13u1 [828 kB]
+Del xserver-common 2:21.1.16-1.3+deb13u4 [2410 kB]
+Del libheif-plugin-libde265 1.23.6-2~deb13u1 [20.9 kB]
+Del openssl 3.5.7-1~deb13u3 [1508 kB]
+Del libbrotli1 1.1.0-2+deb13u1 [304 kB]
+Del liblzma5 5.8.1-1+deb13u2 [310 kB]

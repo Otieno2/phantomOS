@@ -1,0 +1,246 @@
+Two builds of one tree, one configuration, and two different images: what SOURCE_DATE_EPOCH
+being unset actually costs, and why every artifact timestamp recorded so far is the wrong clock.
+
+Why this file exists
+  SPEC §3.1's fact table carried a row giving the PhantomOS image's own `BUILD_ID` as
+  `20261101T140728Z`. That value had been derived from the run's stamp, not read out of any
+  artifact — a prediction wearing a measurement's clothes, which §11 does not allow, so the row
+  was taken out and parked rather than left in. This is the measurement that puts it back.
+  It needed a second run to mean anything: one `BUILD_ID` is a fact about one image, two from an
+  identically-configured tree are a fact about the build. Run N supplied the second one while it
+  was still building.
+
+=== the two clocks, and the single switch that picks between them ===
+Every log in this directory has had to say "host-local EAT" beside live-build's stage stamps and
+"UTC" beside `scripts/build-iso.sh`'s filenames. That is not a convention anyone chose and it is
+not two tools disagreeing; it is one value, and it is a consequence of the same unset variable
+this file is about.
+
+  /usr/share/live/build/functions/configuration.sh
+    48:  # Do a reproducible build, i.e. is SOURCE_DATE_EPOCH already set?
+    49:  _REPRODUCIBLE="${SOURCE_DATE_EPOCH:-false}"
+    50:  if [ "${_REPRODUCIBLE}" != "false" ]; then
+    51:      _REPRODUCIBLE=true
+    52:  fi
+    53:  # For a reproducible build, use UTC per default, otherwise the local time
+    54:  _UTC_TIME_DEFAULT=${_REPRODUCIBLE}
+    57:  export SOURCE_DATE_EPOCH="${SOURCE_DATE_EPOCH:-$(date '+%s')}"
+    59:  LB_UTC_TIME="${LB_UTC_TIME:-${_UTC_TIME_DEFAULT}}"
+
+  run N's own config dump, line 96:  LB_UTC_TIME="false"
+    (/root/phantomos-m1/logs/config-dump-2026-11-01T172102Z.txt, copied to
+     logs/M1-config-dump-2026-11-01T172102Z.txt; 98 assignments, byte-identical to run M's —
+     `diff -q` reported no difference)
+
+So: nothing exports `SOURCE_DATE_EPOCH`, `_REPRODUCIBLE` is false, `LB_UTC_TIME` inherits false,
+and live-build stamps its log in local time. Then line 57 sets the epoch anyway, to the wall
+clock, and everything downstream that reads it gets a per-run value. `SOURCE_DATE_EPOCH` appears
+in **0 of the 98 assignments** in both runs' config dumps, which is consistent with line 57 being
+an `export` inside a function rather than an `LB_` variable the dump enumerates — the dump does
+not show it, so its value has to be read off what it produces. Both renderings of it are below.
+
+live-build version on the build host: `live-build 1:20250505+deb13u1` (`dpkg-query -W`,
+2026-11-01). Line numbers are that version's.
+
+=== where BUILD_ID comes from ===
+  /usr/lib/live/build/bootstrap_debootstrap
+    125: # If there's an os-release file, copy it to /etc/ and add some extra fields that identify the live image
+    126: if [ "${LB_SYSTEM}" = "live" ] && [ -e chroot/usr/lib/os-release ]; then
+    128:     if ! Chroot chroot dpkg-divert --list /etc/os-release | grep -q /etc/os-release; then
+    129:         Chroot chroot dpkg-divert --quiet --local --add --no-rename --divert /etc/os-release.debootstrap /etc/os-release
+    131:     rm -f chroot/etc/os-release
+    132:     cp chroot/usr/lib/os-release chroot/etc/os-release
+    138:     cat <<EOF >> chroot/etc/os-release
+    139: IMAGE_ID=live
+    140: BUILD_ID=$(date --utc -d @${SOURCE_DATE_EPOCH} +%Y%m%dT%H%M%SZ)
+
+Line 140 is the only place in live-build that writes `BUILD_ID`, and it is a `date` rendering of
+the epoch. Note the asymmetry worth recording: `BUILD_ID` is rendered with `--utc` explicitly, so
+it is UTC regardless of `LB_UTC_TIME`, while the ISO volume label below is rendered with
+`$DATE_UTC_OPTION` and is therefore local. One epoch, two clocks, in the same artifact.
+
+=== measurement 1 — run M, read out of the shipped artifact ===
+Read 2026-11-01T18:18:43Z by loop-mounting the archived ISO read-only outside $WORK and
+extracting one file with `unsquashfs -q -d … -f <squashfs> etc/os-release`. The ISO's own
+filesystem is ISO9660 and has no `/etc`; an attempt at 18:14Z to `cat` the mounted ISO's
+`/etc/os-release` failed for exactly that reason, and the extraction below is the correction.
+
+  artifact: /root/phantomos-m1/artifacts/2026-11-01T140727Z/live-image-amd64.hybrid.iso
+  artifact sha256: f256cefc66d9ab31031501469080bbe154b16e7844453ac6e108221a4d69a2a5  (re-verified)
+  squashfs inside: 837292032 bytes  /mnt/m1iso-runM-osr/live/filesystem.squashfs
+
+  PRETTY_NAME="Debian GNU/Linux 13 (trixie)"
+  NAME="Debian GNU/Linux"
+  VERSION_ID="13"
+  VERSION="13 (trixie)"
+  VERSION_CODENAME=trixie
+  DEBIAN_VERSION_FULL=13.7
+  ID=debian
+  HOME_URL="https://www.debian.org/"
+  SUPPORT_URL="https://www.debian.org/support"
+  BUG_REPORT_URL="https://bugs.debian.org/"
+  IMAGE_ID=live
+  BUILD_ID=20261101T140728Z
+
+  sha256 of that file: e248430e6c64862be6da289702732d626f5037bdae21e22ff0084280d4bf93d6
+
+The parked §3.1 value was right. It was still not a measurement when it was written, and it is one
+now.
+
+=== measurement 2 — run N, read out of the chroot while the build ran ===
+`/root/phantomos-m1/live/chroot/etc/os-release`, `cat` at 2026-11-01T18:13:14Z and again at
+18:22Z, while run N was in `chroot_install-packages install` (stage stamp
+`[2026-11-01 21:10:40] lb chroot_install-packages install`). Read-only; nothing in the tree was
+written, moved or chmod'd, and the build was 1731 log lines in with 0 `E:` lines at the time.
+
+  BUILD_ID=20261101T172103Z
+  sha256 of that file: 58252293b25e541dc8584ec83f2cf3cc325248af6c4d5ac35fb906ce99e13c9b
+  mtime: 2026-11-01 20:52:24 +0300   (= 17:52:24Z)
+  /etc/os-release.debootstrap: absent from the chroot at the time of reading
+
+=== the diff, which is the point ===
+  --- runM-shipped.os-release
+  +++ runN-chroot.os-release
+  @@ -9,4 +9,4 @@
+   SUPPORT_URL="https://www.debian.org/support"
+   BUG_REPORT_URL="https://bugs.debian.org/"
+   IMAGE_ID=live
+  -BUILD_ID=20261101T140728Z
+  +BUILD_ID=20261101T172103Z
+
+  differing lines: 2 (one `-`, one `+`)
+  with `^BUILD_ID=` stripped from both: `cmp -s` reports IDENTICAL
+  sha256 of the stripped content, both sides: 070fb0e763efc0fbab5e22a1e167bdc558b36565e6a881cdf5aed12564f1e795
+
+Two runs of the same committed tree, with byte-identical configuration, produced `/etc/os-release`
+files that differ in exactly one line, and that line is a timestamp.
+
+=== what is invariant, and the trap in stating it loosely ===
+Both values are exactly one second after the stamp `scripts/build-iso.sh` gave the run:
+
+  run M: $START 2026-11-01T140727Z  ->  BUILD_ID 20261101T140728Z
+  run N: $START 2026-11-01T172102Z  ->  BUILD_ID 20261101T172103Z
+
+It is tempting to say "BUILD_ID is the `lb bootstrap` stage stamp", and that is true of run N and
+**false of run M**, so it is not the invariant:
+
+  run M first stage stamps            run N first stage stamps
+  [2026-11-01 17:07:28] lb build      [2026-11-01 20:21:02] lb build
+  [2026-11-01 17:07:32] lb bootstrap  [2026-11-01 20:21:03] lb bootstrap
+  [2026-11-01 17:07:38] lb bootstrap_debootstrap
+                                      [2026-11-01 20:21:03] lb bootstrap_debootstrap
+  (local EAT; run M's `lb build` line is 14:07:28Z, run N's is 17:21:02Z)
+
+Run M's BUILD_ID matches its `lb build` stamp and run N's matches its `lb bootstrap` stamp,
+because the two runs spent different amounts of time between the two. What holds is that the epoch
+is captured during live-build's own startup, about a second after our script stamps the run.
+Saying "one second after $START" describes both runs; naming a stage describes one.
+
+=== a second thing that varies, in the ISO's own metadata ===
+  configuration.sh:781 and binary_iso:120 substitute `@ISOVOLUME_TS@` with
+    `date $DATE_UTC_OPTION -d@${SOURCE_DATE_EPOCH} +%Y%m%d-%H:%M`
+  run N's configured value:  LB_ISO_VOLUME="Debian trixie @ISOVOLUME_TS@"   (config dump line 58)
+  run M's shipped value, read with `xorriso -indev <iso> -toc`:
+    Volume id    : 'Debian trixie 20261101-17:07'
+  and independently out of the ISO9660 primary volume descriptor
+  (`dd bs=2048 skip=16 count=1 | cut -c41-72`):
+    Debian trixie 20261101-17:07
+
+Same epoch as BUILD_ID, rendered in **local** time and to the minute, because `$DATE_UTC_OPTION`
+is empty when `LB_UTC_TIME` is false. So the label says 17:07 and the file inside says
+`…T140728Z`, and neither is wrong.
+
+=== the finding that changes how every artifact timestamp in logs/ should be read ===
+`BUILD_ID` is not the only thing the epoch reaches. `/usr/lib/live/build/binary`:
+
+    73: # Apply SOURCE_DATE_EPOCH to all modified and created files
+    74: find binary -newermt "$(date -d@${SOURCE_DATE_EPOCH} '+%Y-%m-%d %H:%M:%S')" -printf "%y %p\n" -exec touch '{}' -d@${SOURCE_DATE_EPOCH} --no-dereference ';' > binary.modified_timestamps
+
+This is **not** gated on `_REPRODUCIBLE`. It runs on every build. Every file in the binary tree
+whose mtime is newer than the epoch has its mtime rewound *to* the epoch, and the list of what was
+rewound is written to `binary.modified_timestamps`. Three more uses of the same value:
+
+    binary_iso:125  XORRISO_OPTIONS … --modification-date=$(date --utc -d@${SOURCE_DATE_EPOCH} +%Y%m%d%H%M%S00)
+    binary_iso:230  touch -d@${SOURCE_DATE_EPOCH} ${IMAGE}
+    (and binary_hdd:358, efi-image:92, source_tar:52-53 for the other output formats)
+
+`binary_iso:230` is the one that matters for reading logs: **the ISO's own mtime is set to the
+epoch, not to the moment it was written.** Which is why run M's artifact reports
+
+    908066816 2026-11-01 17:07:28.000000000 +0300   (logs/M1-runM-shipped-squashfs.txt:17)
+
+while the directory holding it is stamped `Nov  1 18:52` and the build's last stage ran until then.
+The artifact's mtime is one second after the run *started*, and it says nothing about when the run
+finished. The same applies to the squashfs superblock:
+
+    Creation or last append time Sun Nov  1 17:07:28 2026   (logs/M1-runM-shipped-squashfs.txt:28)
+
+and it explains the mtime discrepancy that prompted this section: run M's *shipped*
+`/etc/os-release` carries mtime 17:07:28 local even though `bootstrap_debootstrap` wrote it about
+17 minutes into the stage, because the binary pass rewound it; run N's *chroot* copy still shows
+its true write time (20:52:24 local) because run N had not reached the binary stage when it was
+read. The clamp is why the two look inconsistent, and the clamp is unconditional.
+
+Two consequences for this repo's evidence, stated because they were both nearly gotten wrong:
+  * An artifact's or squashfs's mtime must never be quoted as a build's finish time. Use the run
+    record (`run: $START .. $END` in logs/M1-artifact-<stamp>.txt) or the log's last stage stamp.
+  * The clamp does not make anything reproducible. It makes mtimes *consistent within one run* and
+    shifts them all to a value that still differs per run. Byte-comparability across runs is not
+    improved by it, and the finding above (one differing line in `/etc/os-release`, plus the volume
+    label and every clamped mtime) is what remains.
+
+=== what this does not claim ===
+  * Run N's `BUILD_ID` was read from the chroot, not from a shipped artifact. Run N had not reached
+    `binary_rootfs` when it was read. The shipped value must be re-read out of run N's ISO and
+    compared with this one; if the binary stage or anything after it rewrote `/etc/os-release`, the
+    chroot reading is not the shipped one. Nothing in `bootstrap_debootstrap` or `binary` suggests
+    it would be, but that is a reading and §11 wants the measurement.
+  * Only `/etc/os-release` and the ISO volume label are shown to vary. No whole-image diff between
+    run M and run N was made, and one cannot be: run N's package set is deliberately different
+    (it adds `user-setup`, `locales`, `live-tools` — logs/M1-no-live-user.txt §8). So "these are
+    the only two per-run differences" is not claimed and is not knowable from this pair of runs.
+  * Byte-reproducibility was not tested and is not being claimed either way. What was tested is
+    whether two identically-configured runs agree on one file's contents, and they do not.
+
+=== a prediction for run N's artifact, written down so it can be contradicted ===
+Run N's epoch is 2026-11-01T17:21:03Z (its `BUILD_ID`, read out of the chroot). Everything below
+follows from that value and the source lines quoted above, and each is checkable against run N's
+ISO the moment it lands:
+
+  shipped /etc/os-release BUILD_ID   20261101T172103Z      (bootstrap_debootstrap:140, --utc)
+  ISO volume id                      Debian trixie 20261101-20:21
+                                                            (binary_iso:120, $DATE_UTC_OPTION empty
+                                                             because LB_UTC_TIME="false", so LOCAL
+                                                             time at minute resolution — note this
+                                                             one is not UTC and not 17:21)
+  ISO9660 modification date          20261101172103 00     (binary_iso:125, --utc, +%Y%m%d%H%M%S00)
+  the ISO file's own mtime           2026-11-01 20:21:03 +0300   (binary_iso:230)
+  the shipped os-release's mtime     the same, 20:21:03 +0300, not its true write time 20:52:24
+                                                            (binary:74's clamp)
+  live/binary.modified_timestamps    exists, and lists etc/os-release among what was rewound
+
+If the volume id comes back `20261101-17:21` then `$DATE_UTC_OPTION` is not empty and the reading
+of configuration.sh:54-59 above is wrong. If the shipped os-release mtime is still 20:52:24 then
+binary:74 did not reach it and the clamp explanation for run M's 17:07:28 is wrong too.
+
+=== consequence ===
+M1a is "the build is reproducible **from the committed tree**" — that is about inputs: any run
+started from this tree builds the same image, with no step living in shell history. That claim is
+untouched by this file and is what run N tests.
+
+What this file adds is the other sense of reproducible, the one §10's M5 row calls
+"reproducible-enough": two runs of this tree do **not** produce byte-identical artifacts, and the
+single cause identified here is that nothing exports `SOURCE_DATE_EPOCH`. Exporting it would fix
+`BUILD_ID`, the volume label, the ISO modification date, the squashfs creation time and every
+clamped mtime at once — and it would also flip `LB_UTC_TIME` to true (configuration.sh:54), which
+changes the clock live-build's own log stamps use, so it is not a free change: every timestamp
+comparison written against existing logs would need re-reading. That trade is a decision, not a
+fix, and it is recorded in SPEC §12 rather than made here.
+
+=== hygiene ===
+Three read-only loop mounts of the archived ISO were made, all at mountpoints outside `$WORK`
+(`/mnt/m1iso-runM-osr`, `/mnt/m1iso-osr-diff`), all `umount`ed clean with the mountpoint
+directories removed. `grep -c phantomos /proc/mounts` was 4 before and 4 after each, so nothing
+was left behind and run N's bind mounts were untouched. The one write anywhere was `cp` of the
+chroot's `os-release` into `/tmp`, and `/tmp/osr-diff` was removed. Run N's build was live
+throughout (wrapper pid 73192, `.build-iso.running.sh`); nothing under `$WORK/live` was written.

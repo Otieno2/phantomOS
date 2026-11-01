@@ -1,0 +1,88 @@
+=== 1. the seven names, as apt inside the build chroot answered them ===
+python3-venv: in-image=1  auto-marked-in-image=1
+python3.13-venv: in-image=1  auto-marked-in-image=1
+python3-pip-whl: in-image=1  auto-marked-in-image=1
+python3-setuptools-whl: in-image=1  auto-marked-in-image=1
+gettext-base: in-image=0  auto-marked-in-image=0
+live-boot: in-image=1  auto-marked-in-image=0
+live-boot-initramfs-tools: in-image=1  auto-marked-in-image=1
+squashfs-tools: in-image=0  auto-marked-in-image=0
+liblzo2-2: in-image=1  auto-marked-in-image=1
+
+=== 2. what the archive says each one Depends on (chroot's own apt lists) ===
+--- apt-cache show python3-venv (Depends/Suggests/Recommends only) ---
+Package: python3-venv
+Version: 3.13.5-1
+Depends: python3.13-venv (>= 3.13.5-1~), python3 (= 3.13.5-1)
+--- apt-cache show python3.13-venv (Depends/Suggests/Recommends only) ---
+Package: python3.13-venv
+Version: 3.13.5-2+deb13u5
+Depends: python3.13 (= 3.13.5-2+deb13u5), python3-pip-whl (>= 22.2), python3-setuptools-whl (>= 70.1)
+--- apt-cache show live-boot (Depends/Suggests/Recommends only) ---
+Package: live-boot
+Version: 1:20250815~deb13u1
+Depends: live-boot-initramfs-tools | live-boot-backend
+Recommends: live-boot-doc, live-tools, rsync, uuid-runtime
+Suggests: cryptsetup, curlftpfs, httpfs2, wget
+--- apt-cache show live-boot-initramfs-tools (Depends/Suggests/Recommends only) ---
+Package: live-boot-initramfs-tools
+Version: 1:20250815~deb13u1
+Depends: busybox | busybox-initramfs, initramfs-tools, udev
+--- gettext-base ---
+Package: gettext-base
+Version: 0.23.1-2
+Depends: libc6 (>= 2.38)
+--- squashfs-tools: what names it as a dependency? ---
+squashfs-tools
+Reverse Depends:
+
+=== 3. which named selection pulls each drift name (apt's own resolver) ===
+--- gettext-base: is it in the Depends closure of a §5/live name? ---
+0
+--- live-boot-initramfs-tools: is it in the Depends closure of a §5/live name? ---
+1
+7: |Depends: live-boot-initramfs-tools
+9:    live-boot-initramfs-tools
+18:live-boot-initramfs-tools
+--- python3.13-venv: is it in the Depends closure of a §5/live name? ---
+0
+11:  Depends: python3.13-venv
+24:python3.13-venv
+
+=== 4. what these packages put in the image ===
+--- gettext-base:     /.     /usr     /usr/bin     /usr/bin/envsubst     /usr/bin/gettext     /usr/bin/gettext.sh  ---
+    Depends: libc6 (>= 2.38)
+    Description: GNU Internationalization utilities for the base system
+--- live-boot-initramfs-tools:     /.     /usr     /usr/share     /usr/share/doc     /usr/share/initramfs-tools     /usr/share/initramfs-tools/hooks  ---
+    Depends: busybox | busybox-initramfs, initramfs-tools, udev
+    Description: Live System Boot Components (initramfs-tools backend)
+--- python3.13-venv:     /.     /usr     /usr/lib     /usr/lib/python3.13     /usr/lib/python3.13/ensurepip     /usr/lib/python3.13/ensurepip/__init__.py  ---
+    Depends: python3.13 (= 3.13.5-2+deb13u5), python3-pip-whl (>= 22.2), python3-setuptools-whl (>= 70.1)
+    Description: Interactive high-level object-oriented language (pyvenv binary, version 3.13)
+--- python3-pip-whl:     /.     /usr     /usr/share     /usr/share/doc     /usr/share/python-wheels     /usr/share/python-wheels/pip-25.1.1-py3-none-any.whl  ---
+    Depends: ca-certificates
+    Description: Python package installer (pip wheel)
+--- python3-setuptools-whl:     /.     /usr     /usr/share     /usr/share/doc     /usr/share/python-wheels     /usr/share/python-wheels/setuptools-78.1.1-py3-none-any.whl  ---
+    Description: Python Distutils Enhancements (wheel package)
+
+=== 5. squashfs-tools: in the image or not? ===
+0
+squashfs-root
+squashfs-root/bin
+squashfs-root/boot
+--- inside the chroot on the host (not the image) ---
+ls: cannot access '/root/phantomos-m1/live/chroot/usr/bin/mksquashfs': No such file or directory
+ls: cannot access '/root/phantomos-m1/live/chroot/usr/bin/unsquashfs': No such file or directory
+--- the shipped status stanzas for the four drift names ---
+  live-boot-initramfs-tools: Status: install ok installed
+  live-boot-initramfs-tools: Architecture: all
+  live-boot-initramfs-tools: Version: 1:20250815~deb13u1
+  python3.13-venv: Status: install ok installed
+  python3.13-venv: Architecture: amd64
+  python3.13-venv: Version: 3.13.5-2+deb13u5
+  python3-pip-whl: Status: install ok installed
+  python3-pip-whl: Architecture: all
+  python3-pip-whl: Version: 25.1.1+dfsg-1
+  python3-setuptools-whl: Status: install ok installed
+  python3-setuptools-whl: Architecture: all
+  python3-setuptools-whl: Version: 78.1.1-0.1
